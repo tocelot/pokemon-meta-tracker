@@ -1,0 +1,145 @@
+{
+  "creators": [
+    {
+      "id": "azulgg",
+      "name": "AzulGG",
+      "channelUrl": "https://youtube.com/@AzulGG",
+      "avatarUrl": "/images/creators/azulgg.png"
+    },
+    {
+      "id": "zapdostcg",
+      "name": "ZapdosTCG",
+      "channelUrl": "https://youtube.com/@ZapdosTCG",
+      "avatarUrl": "/images/creators/zapdos.png"
+    },
+    {
+      "id": "shuffle-squad",
+      "name": "The Shuffle Squad",
+      "channelUrl": "http://www.youtube.com/@TheShuffleSquadTCG",
+      "avatarUrl": "/images/creators/shuffle.png"
+    },
+    {
+      "id": "celios-network",
+      "name": "Celio's Network",
+      "channelUrl": "https://youtube.com/@CeliosNetwork",
+      "avatarUrl": "/images/creators/celios.png"
+    },
+    {
+      "id": "nurse-jared",
+      "name": "Nurse Jared",
+      "channelUrl": "https://youtube.com/@NurseJared",
+      "avatarUrl": "/images/creators/nursejared.png"
+    }
+  ],
+  "recommendations": [
+    {
+      "deckId": "charizard-ex-noctowl",
+      "archetype": {
+        "id": "charizard-ex-noctowl",
+        "name": "Charizard ex / Noctowl",
+        "primaryPokemon": [
+          "Charizard ex",
+          "Noctowl"
+        ],
+        "tier": 1
+      },
+      "creator": {
+        "id": "azulgg",
+        "name": "AzulGG",
+        "channelUrl": "https://youtube.com/@AzulGG"
+      },
+      "videoUrl": "https://youtube.com/@AzulGG",
+      "videoTitle": "Watch AzulGG's Charizard ex / Noctowl Content",
+      "publishDate": "2025-12-01",
+      "tierRating": "Tier 1",
+      "notes": "Consistent draw engine with Noctowl and powerful Charizard ex finisher."
+    },
+    {
+      "deckId": "dragapult-ex-dusknoir",
+      "archetype": {
+        "id": "dragapult-ex-dusknoir",
+        "name": "Dragapult ex / Dusknoir",
+        "primaryPokemon": [
+          "Dragapult ex",
+          "Dusknoir"
+        ],
+        "tier": 1
+      },
+      "creator": {
+        "id": "zapdostcg",
+        "name": "ZapdosTCG",
+        "channelUrl": "https://youtube.com/@ZapdosTCG"
+      },
+      "videoUrl": "https://youtube.com/@ZapdosTCG",
+      "videoTitle": "Watch ZapdosTCG's Dragapult ex / Dusknoir Content",
+      "publishDate": "2025-11-25",
+      "tierRating": "Tier 1",
+      "notes": "Strong spread damage and prize denial strategy with Dusknoir."
+    },
+    {
+      "deckId": "gardevoir-ex-jellicent-ex",
+      "archetype": {
+        "id": "gardevoir-ex-jellicent-ex",
+        "name": "Gardevoir ex / Jellicent ex",
+        "primaryPokemon": [
+          "Gardevoir ex",
+          "Jellicent ex"
+        ],
+        "tier": 1
+      },
+      "creator": {
+        "id": "celios-network",
+        "name": "Celio's Network",
+        "channelUrl": "https://youtube.com/@CeliosNetwork"
+      },
+      "videoUrl": "https://youtube.com/@CeliosNetwork",
+      "videoTitle": "Watch Celio's Network's Gardevoir ex / Jellicent ex Content",
+      "publishDate": "2025-11-28",
+      "tierRating": "Tier 1",
+      "notes": "Energy acceleration with Gardevoir and solid attackers."
+    },
+    {
+      "deckId": "gholdengo-ex-lunatone",
+      "archetype": {
+        "id": "gholdengo-ex-lunatone",
+        "name": "Gholdengo ex / Lunatone",
+        "primaryPokemon": [
+          "Gholdengo ex",
+          "Lunatone"
+        ],
+        "tier": 1
+      },
+      "creator": {
+        "id": "shuffle-squad",
+        "name": "The Shuffle Squad",
+        "channelUrl": "https://youtube.com/@TheShuffleSquad"
+      },
+      "videoUrl": "https://youtube.com/@TheShuffleSquad",
+      "videoTitle": "Watch The Shuffle Squad's Gholdengo ex / Lunatone Content",
+      "publishDate": "2025-12-02",
+      "tierRating": "Tier 1",
+      "notes": "Fast energy setup with Lunatone/Solrock engine."
+    },
+    {
+      "deckId": "regidrago-vstar",
+      "archetype": {
+        "id": "regidrago-vstar",
+        "name": "Regidrago VSTAR",
+        "primaryPokemon": [
+          "Regidrago VSTAR"
+        ],
+        "tier": 2
+      },
+      "creator": {
+        "id": "nurse-jared",
+        "name": "Nurse Jared",
+        "channelUrl": "https://youtube.com/@NurseJared"
+      },
+      "videoUrl": "https://youtube.com/@NurseJared",
+      "videoTitle": "Watch Nurse Jared's Regidrago VSTAR Content",
+      "publishDate": "2025-11-20",
+      "tierRating": "Tier 2",
+      "notes": "Versatile Dragon-type deck that can copy any Dragon attack."
+    }
+  ]
+}
