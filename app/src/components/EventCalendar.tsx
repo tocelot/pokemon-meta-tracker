@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface CalendarEvent {
@@ -22,6 +22,7 @@ interface EventCalendarProps {
   events: CalendarEvent[]
   selectedDate: string | null
   onSelectDate: (date: string | null) => void
+  onDateRangeChange?: (startDate: string, endDate: string) => void
 }
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -30,8 +31,8 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ]
 
-export function EventCalendar({ events, selectedDate, onSelectDate }: EventCalendarProps) {
-  const today = new Date()
+export function EventCalendar({ events, selectedDate, onSelectDate, onDateRangeChange }: EventCalendarProps) {
+  const [today] = useState(() => new Date())
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
   const [currentYear, setCurrentYear] = useState(today.getFullYear())
 
@@ -59,12 +60,12 @@ export function EventCalendar({ events, selectedDate, onSelectDate }: EventCalen
     }
 
     if (isCurrentMonthView) {
-      // For current month: start from beginning of current week, show 3 weeks
+      // For current month: start from beginning of current week, show 4 weeks
       const startOfWeek = new Date(today)
       startOfWeek.setDate(today.getDate() - today.getDay()) // Go to Sunday of current week
 
-      // Show 3 weeks (21 days)
-      for (let i = 0; i < 21; i++) {
+      // Show 4 weeks (28 days)
+      for (let i = 0; i < 28; i++) {
         const d = new Date(startOfWeek)
         d.setDate(startOfWeek.getDate() + i)
         days.push({
@@ -109,6 +110,15 @@ export function EventCalendar({ events, selectedDate, onSelectDate }: EventCalen
     return days
   }, [currentMonth, currentYear, isCurrentMonthView, today])
 
+  // Notify parent of visible date range
+  useEffect(() => {
+    if (calendarDays.length > 0 && onDateRangeChange) {
+      const startDate = calendarDays[0].dateString
+      const endDate = calendarDays[calendarDays.length - 1].dateString
+      onDateRangeChange(startDate, endDate)
+    }
+  }, [calendarDays, onDateRangeChange])
+
   const goToPreviousMonth = () => {
     if (currentMonth === 0) {
       setCurrentMonth(11)
@@ -152,7 +162,7 @@ export function EventCalendar({ events, selectedDate, onSelectDate }: EventCalen
 
         <div className="flex items-center gap-4">
           <h3 className="text-lg font-semibold text-white">
-            {isCurrentMonthView ? 'Next 3 Weeks' : `${MONTHS[currentMonth]} ${currentYear}`}
+            {isCurrentMonthView ? `${MONTHS[currentMonth]} - Next 4 Weeks` : `${MONTHS[currentMonth]} ${currentYear}`}
           </h3>
           {!isCurrentMonthView && (
             <button

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, FormEvent, Suspense } from 'react'
+import { useEffect, useState, FormEvent, Suspense, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Header } from '@/components/Header'
 import { DeckCard } from '@/components/DeckCard'
@@ -79,6 +79,12 @@ function HomePageContent() {
   const [citySearch, setCitySearch] = useState('94002')
   const [searchRadius, setSearchRadius] = useState('50')
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [calendarDateRange, setCalendarDateRange] = useState<{ start: string; end: string } | null>(null)
+
+  // Memoized callback for calendar date range changes
+  const handleDateRangeChange = useCallback((start: string, end: string) => {
+    setCalendarDateRange({ start, end })
+  }, [])
 
   // Load custom creators from localStorage on mount
   useEffect(() => {
@@ -461,6 +467,7 @@ function HomePageContent() {
                   events={localEvents}
                   selectedDate={selectedDate}
                   onSelectDate={setSelectedDate}
+                  onDateRangeChange={handleDateRangeChange}
                 />
               </div>
             )}
@@ -492,7 +499,17 @@ function HomePageContent() {
             ) : localEvents.length > 0 ? (
               <div className="space-y-4">
                 {localEvents
-                  .filter(event => !selectedDate || event.date === selectedDate)
+                  .filter(event => {
+                    // If a specific date is selected, show only that date
+                    if (selectedDate) {
+                      return event.date === selectedDate
+                    }
+                    // Otherwise, filter by calendar's visible date range
+                    if (calendarDateRange) {
+                      return event.date >= calendarDateRange.start && event.date <= calendarDateRange.end
+                    }
+                    return true
+                  })
                   .sort((a, b) => {
                     // When a date is selected, sort Cups before Challenges, then by distance
                     if (selectedDate) {
@@ -614,7 +631,7 @@ function HomePageContent() {
 
       <footer className="border-t border-gray-800 py-6 mt-8">
         <div className="container mx-auto px-4 text-center text-gray-500 text-sm">
-          Made by a pokedad - send any bug reports to{' '}
+          Made with love by a pokedad - DM any bug reports to{' '}
           <a
             href="https://x.com/Tocelot/"
             target="_blank"
