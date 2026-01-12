@@ -28,6 +28,10 @@ interface PageProps {
 export default function DeckPage({ params }: PageProps) {
   const searchParams = useSearchParams()
   const deckListId = searchParams.get('list')
+  const playerName = searchParams.get('player')
+  const placement = searchParams.get('placement')
+  const tournamentName = searchParams.get('tournament')
+  const fromTab = searchParams.get('from')
   
   const [id, setId] = useState<string>('')
   const [deckList, setDeckList] = useState<DeckListType | null>(null)
@@ -220,11 +224,11 @@ export default function DeckPage({ params }: PageProps) {
       />
       
       <main className="container mx-auto px-4 py-8">
-        <Link 
-          href="/"
+        <Link
+          href={fromTab === 'tournament' ? '/?tab=tournament' : '/'}
           className="text-poke-yellow hover:text-yellow-300 text-sm mb-6 inline-block"
         >
-          ← Back to Meta Overview
+          ← Back to {fromTab === 'tournament' ? 'Tournament Results' : 'Meta Overview'}
         </Link>
         
         <div className="mb-8">
@@ -315,6 +319,19 @@ export default function DeckPage({ params }: PageProps) {
         {deckListId && deckList && (
           <div className="mt-6 p-4 bg-poke-dark border border-gray-800 rounded-lg">
             <p className="text-gray-400 text-sm">
+              {playerName && placement && (
+                <>
+                  <span className="text-white font-medium">{playerName}</span>
+                  {' - '}
+                  <span className="text-poke-yellow">
+                    {placement === '1' ? '1st' : placement === '2' ? '2nd' : placement === '3' ? '3rd' : placement + 'th'} place
+                  </span>
+                  {tournamentName && (
+                    <span className="text-gray-500"> at {tournamentName}</span>
+                  )}
+                  {' · '}
+                </>
+              )}
               Deck list sourced from{' '}
               <a
                 href={'https://limitlesstcg.com/decks/list/' + deckListId}
@@ -324,7 +341,6 @@ export default function DeckPage({ params }: PageProps) {
               >
                 Limitless TCG
               </a>
-              .
             </p>
           </div>
         )}

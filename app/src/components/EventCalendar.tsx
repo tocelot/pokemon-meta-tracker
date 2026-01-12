@@ -114,7 +114,7 @@ export function EventCalendar({ events, selectedDate, onSelectDate }: EventCalen
   }
 
   return (
-    <div className="bg-poke-dark border border-gray-800 rounded-lg p-4">
+    <div className="bg-poke-dark border border-gray-800 rounded-lg p-2 sm:p-4 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <button
@@ -183,7 +183,7 @@ export function EventCalendar({ events, selectedDate, onSelectDate }: EventCalen
               }}
               disabled={!hasEvents}
               className={`
-                relative min-h-[100px] p-1 flex flex-col items-stretch rounded-lg text-sm transition-all
+                relative min-h-[60px] sm:min-h-[80px] md:min-h-[100px] p-0.5 sm:p-1 flex flex-col items-stretch rounded-lg text-sm transition-all
                 ${!day.isCurrentMonth ? 'text-gray-600 bg-gray-900/30' : 'text-gray-300'}
                 ${hasEvents ? 'cursor-pointer hover:bg-gray-800' : 'cursor-default'}
                 ${isSelected ? 'bg-gray-700 ring-2 ring-poke-blue' : ''}
@@ -206,7 +206,7 @@ export function EventCalendar({ events, selectedDate, onSelectDate }: EventCalen
                     <div
                       key={i}
                       className={`
-                        text-[10px] leading-tight px-1 py-0.5 rounded
+                        text-[8px] sm:text-[10px] leading-tight px-0.5 sm:px-1 py-0.5 rounded
                         ${event.type === 'League Cup'
                           ? 'bg-orange-500/20 text-orange-300'
                           : 'bg-poke-blue/20 text-blue-300'
@@ -215,7 +215,7 @@ export function EventCalendar({ events, selectedDate, onSelectDate }: EventCalen
                       title={`${event.type}: ${event.shop} - ${event.city}`}
                     >
                       <div className="truncate">{event.city}</div>
-                      <div className="text-[9px] opacity-75 truncate">
+                      <div className="text-[7px] sm:text-[9px] opacity-75 truncate hidden sm:block">
                         {formatTime(event.time)} · {event.shop.split(' ').slice(0, 2).join(' ')}
                       </div>
                     </div>

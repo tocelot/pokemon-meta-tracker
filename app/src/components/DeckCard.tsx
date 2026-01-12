@@ -37,8 +37,20 @@ export function DeckCard({
     return p + 'th'
   }
 
-  // Build the href with deckListId as a query param
-  const href = deckListId ? '/deck/' + id + '?list=' + deckListId : '/deck/' + id
+  // Build the href with deckListId, player name, placement, and source tab as query params
+  const topPlacement = placements?.find(p => p.deckListId === deckListId)
+  const params = new URLSearchParams()
+  if (deckListId) {
+    params.set('list', deckListId)
+  }
+  if (topPlacement) {
+    params.set('player', topPlacement.playerName)
+    params.set('placement', topPlacement.placement.toString())
+    params.set('tournament', topPlacement.tournament.name)
+  }
+  // Track which tab the user came from
+  params.set('from', source)
+  const href = '/deck/' + id + '?' + params.toString()
 
   return (
     <Link href={href}>
