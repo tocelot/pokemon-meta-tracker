@@ -35,6 +35,9 @@ export function EventCalendar({ events, selectedDate, onSelectDate }: EventCalen
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
   const [currentYear, setCurrentYear] = useState(today.getFullYear())
 
+  // Check if we're viewing the current month
+  const isCurrentMonthView = currentMonth === today.getMonth() && currentYear === today.getFullYear()
+
   // Group events by date
   const eventsByDate = useMemo(() => {
     const grouped: Record<string, CalendarEvent[]> = {}
@@ -49,40 +52,62 @@ export function EventCalendar({ events, selectedDate, onSelectDate }: EventCalen
 
   // Get calendar grid data
   const calendarDays = useMemo(() => {
-    const firstDay = new Date(currentYear, currentMonth, 1)
-    const lastDay = new Date(currentYear, currentMonth + 1, 0)
-    const daysInMonth = lastDay.getDate()
-    const startingDayOfWeek = firstDay.getDay()
-
     const days: Array<{ date: number; dateString: string; isCurrentMonth: boolean }> = []
 
-    // Previous month's trailing days
-    const prevMonthLastDay = new Date(currentYear, currentMonth, 0).getDate()
-    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-      const date = prevMonthLastDay - i
-      const month = currentMonth === 0 ? 11 : currentMonth - 1
-      const year = currentMonth === 0 ? currentYear - 1 : currentYear
-      const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`
-      days.push({ date, dateString, isCurrentMonth: false })
+    const formatDateString = (d: Date) => {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     }
 
-    // Current month's days
-    for (let date = 1; date <= daysInMonth; date++) {
-      const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`
-      days.push({ date, dateString, isCurrentMonth: true })
-    }
+    if (isCurrentMonthView) {
+      // For current month: start from beginning of current week, show 3 weeks
+      const startOfWeek = new Date(today)
+      startOfWeek.setDate(today.getDate() - today.getDay()) // Go to Sunday of current week
 
-    // Next month's leading days - only fill to complete the last week
-    const remainingDays = (7 - (days.length % 7)) % 7
-    for (let date = 1; date <= remainingDays; date++) {
-      const month = currentMonth === 11 ? 0 : currentMonth + 1
-      const year = currentMonth === 11 ? currentYear + 1 : currentYear
-      const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`
-      days.push({ date, dateString, isCurrentMonth: false })
+      // Show 3 weeks (21 days)
+      for (let i = 0; i < 21; i++) {
+        const d = new Date(startOfWeek)
+        d.setDate(startOfWeek.getDate() + i)
+        days.push({
+          date: d.getDate(),
+          dateString: formatDateString(d),
+          isCurrentMonth: d.getMonth() === currentMonth
+        })
+      }
+    } else {
+      // For other months: show full month view
+      const firstDay = new Date(currentYear, currentMonth, 1)
+      const lastDay = new Date(currentYear, currentMonth + 1, 0)
+      const daysInMonth = lastDay.getDate()
+      const startingDayOfWeek = firstDay.getDay()
+
+      // Previous month's trailing days
+      const prevMonthLastDay = new Date(currentYear, currentMonth, 0).getDate()
+      for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+        const date = prevMonthLastDay - i
+        const month = currentMonth === 0 ? 11 : currentMonth - 1
+        const year = currentMonth === 0 ? currentYear - 1 : currentYear
+        const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`
+        days.push({ date, dateString, isCurrentMonth: false })
+      }
+
+      // Current month's days
+      for (let date = 1; date <= daysInMonth; date++) {
+        const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`
+        days.push({ date, dateString, isCurrentMonth: true })
+      }
+
+      // Next month's leading days - only fill to complete the last week
+      const remainingDays = (7 - (days.length % 7)) % 7
+      for (let date = 1; date <= remainingDays; date++) {
+        const month = currentMonth === 11 ? 0 : currentMonth + 1
+        const year = currentMonth === 11 ? currentYear + 1 : currentYear
+        const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`
+        days.push({ date, dateString, isCurrentMonth: false })
+      }
     }
 
     return days
-  }, [currentMonth, currentYear])
+  }, [currentMonth, currentYear, isCurrentMonthView, today])
 
   const goToPreviousMonth = () => {
     if (currentMonth === 0) {
@@ -119,21 +144,24 @@ export function EventCalendar({ events, selectedDate, onSelectDate }: EventCalen
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={goToPreviousMonth}
-          className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+          disabled={isCurrentMonthView}
+          className={`p-2 rounded-lg transition-colors ${isCurrentMonthView ? 'opacity-30 cursor-not-allowed' : 'hover:bg-gray-800'}`}
         >
           <ChevronLeft className="w-5 h-5 text-gray-400" />
         </button>
 
         <div className="flex items-center gap-4">
           <h3 className="text-lg font-semibold text-white">
-            {MONTHS[currentMonth]} {currentYear}
+            {isCurrentMonthView ? 'Next 3 Weeks' : `${MONTHS[currentMonth]} ${currentYear}`}
           </h3>
-          <button
-            onClick={goToToday}
-            className="text-xs px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
-          >
-            Today
-          </button>
+          {!isCurrentMonthView && (
+            <button
+              onClick={goToToday}
+              className="text-xs px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
+            >
+              Today
+            </button>
+          )}
         </div>
 
         <button
