@@ -21,8 +21,16 @@ export function Header({ currentSet, lastUpdated }: HeaderProps) {
               Current Set: {currentSet.name} (Released {currentSet.releaseDate})
             </p>
           </div>
-          <div className="text-sm text-gray-500">
-            Last Updated: {new Date(lastUpdated).toLocaleDateString()}
+          <div className="text-sm text-gray-500 text-right">
+            <div>Last Updated: {new Date(lastUpdated).toLocaleDateString()}</div>
+            <a
+              href="https://x.com/Tocelot/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-poke-blue hover:underline"
+            >
+              @tocelot
+            </a>
           </div>
         </div>
       </div>
