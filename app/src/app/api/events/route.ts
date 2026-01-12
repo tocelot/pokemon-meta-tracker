@@ -39,10 +39,10 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { country = 'US', latitude, longitude, radius = '50', state = '' } = body
 
-    // Build the request to pokedata API - League Cups and Challenges only
+    // Build base request body for pokedata API
     // IMPORTANT: ftcg must be disabled to exclude "nonpremier TCG" events
-    // This allows us to get all League Cup/Challenge events without hitting the 100 event limit
-    const pokedataBody = {
+    // We make separate requests for cups and challenges to avoid the 100 event limit
+    const baseBody = {
       past: '',
       country: country,
       city: '',
@@ -50,8 +50,6 @@ export async function POST(request: Request) {
       league: '',
       states: state ? JSON.stringify([state]) : '[]',
       postcode: '',
-      cups: '1',        // League Cups (TCG)
-      challenges: '1',  // League Challenges (TCG)
       vcups: '',        // VGC Cups (disabled)
       vchallenges: '',  // VGC Challenges (disabled)
       prereleases: '',  // Pre-releases (disabled)
@@ -72,19 +70,32 @@ export async function POST(request: Request) {
     // Parse radius for distance filtering
     const maxDistance = parseInt(radius) || 50
 
-    const response = await fetch('https://pokedata.ovh/events/tableapi/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: JSON.stringify(pokedataBody),
-    })
+    // Make separate requests for cups and challenges to get more events
+    // Each request can return up to 100 events, so splitting doubles our coverage
+    const [cupsResponse, challengesResponse] = await Promise.all([
+      fetch('https://pokedata.ovh/events/tableapi/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+        body: JSON.stringify({ ...baseBody, cups: '1', challenges: '' }),
+      }),
+      fetch('https://pokedata.ovh/events/tableapi/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+        body: JSON.stringify({ ...baseBody, cups: '', challenges: '1' }),
+      }),
+    ])
 
-    if (!response.ok) {
-      throw new Error(`Pokedata API returned ${response.status}`)
+    if (!cupsResponse.ok || !challengesResponse.ok) {
+      throw new Error(`Pokedata API returned error`)
     }
 
-    const data = await response.json()
+    const [cupsData, challengesData] = await Promise.all([
+      cupsResponse.json(),
+      challengesResponse.json(),
+    ])
+
+    // Merge the results
+    const data = [...(Array.isArray(cupsData) ? cupsData : []), ...(Array.isArray(challengesData) ? challengesData : [])]
 
     // API returns a direct array of event objects
     let events: LocalEvent[] = []
