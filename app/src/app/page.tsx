@@ -5,6 +5,7 @@ import { Header } from '@/components/Header'
 import { DeckCard } from '@/components/DeckCard'
 import { CreatorCard } from '@/components/CreatorCard'
 import { TournamentSelector } from '@/components/TournamentSelector'
+import { EventCalendar } from '@/components/EventCalendar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import { useTournamentSelection } from '@/hooks/useTournamentSelection'
 import { TournamentResult, Placement } from '@/lib/types'
@@ -72,6 +73,7 @@ export default function HomePage() {
   const [eventsLoading, setEventsLoading] = useState(false)
   const [citySearch, setCitySearch] = useState('Belmont, CA 94002')
   const [searchRadius, setSearchRadius] = useState('50')
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   // Load custom creators from localStorage on mount
   useEffect(() => {
@@ -411,7 +413,7 @@ export default function HomePage() {
 
             {/* City Search */}
             <div className="bg-poke-dark border border-gray-800 rounded-lg p-4 mb-6">
-              <form onSubmit={handleCitySearch} className="flex gap-3">
+              <form onSubmit={(e) => { handleCitySearch(e); setSelectedDate(null); }} className="flex gap-3">
                 <div className="flex-1 relative">
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
                   <input
@@ -429,8 +431,8 @@ export default function HomePage() {
                 >
                   <option value="25">25 mi</option>
                   <option value="50">50 mi</option>
+                  <option value="75">75 mi</option>
                   <option value="100">100 mi</option>
-                  <option value="200">200 mi</option>
                 </select>
                 <button
                   type="submit"
@@ -442,7 +444,31 @@ export default function HomePage() {
               </form>
             </div>
 
+            {/* Calendar */}
+            {!eventsLoading && localEvents.length > 0 && (
+              <div className="mb-6">
+                <EventCalendar
+                  events={localEvents}
+                  selectedDate={selectedDate}
+                  onSelectDate={setSelectedDate}
+                />
+              </div>
+            )}
+
             {/* Events List */}
+            {selectedDate && (
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-medium text-white">
+                  Events on {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </h3>
+                <button
+                  onClick={() => setSelectedDate(null)}
+                  className="text-sm text-gray-400 hover:text-white transition-colors"
+                >
+                  Show all events
+                </button>
+              </div>
+            )}
             {eventsLoading ? (
               <div className="space-y-4">
                 {[1, 2, 3, 4].map(i => (
@@ -455,7 +481,23 @@ export default function HomePage() {
               </div>
             ) : localEvents.length > 0 ? (
               <div className="space-y-4">
-                {localEvents.map((event) => {
+                {localEvents
+                  .filter(event => !selectedDate || event.date === selectedDate)
+                  .sort((a, b) => {
+                    // When a date is selected, sort Cups before Challenges, then by distance
+                    if (selectedDate) {
+                      // League Cups come first
+                      if (a.type !== b.type) {
+                        return a.type === 'League Cup' ? -1 : 1
+                      }
+                      // Then sort by distance
+                      if (a.distance !== undefined && b.distance !== undefined) {
+                        return a.distance - b.distance
+                      }
+                    }
+                    return 0
+                  })
+                  .map((event) => {
                   // Format date nicely
                   const eventDate = new Date(event.date + 'T00:00:00')
                   const formattedDate = eventDate.toLocaleDateString('en-US', {
