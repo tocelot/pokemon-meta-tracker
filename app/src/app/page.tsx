@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, FormEvent } from 'react'
+import { useEffect, useState, FormEvent, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Header } from '@/components/Header'
 import { DeckCard } from '@/components/DeckCard'
@@ -51,7 +51,7 @@ interface GroupedResult extends TournamentResult {
   placements: Placement[]
 }
 
-export default function HomePage() {
+function HomePageContent() {
   const searchParams = useSearchParams()
   const tabParam = searchParams.get('tab')
 
@@ -626,5 +626,13 @@ export default function HomePage() {
         </div>
       </footer>
     </div>
+  )
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-poke-darker flex items-center justify-center text-gray-400">Loading...</div>}>
+      <HomePageContent />
+    </Suspense>
   )
 }

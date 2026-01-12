@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-export const revalidate = 86400 // Cache for 24 hours
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   try {

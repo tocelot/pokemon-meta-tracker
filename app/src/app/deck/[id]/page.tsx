@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Header } from '@/components/Header'
@@ -25,7 +25,7 @@ interface PageProps {
 }
 
 // MARKER
-export default function DeckPage({ params }: PageProps) {
+function DeckPageContent({ params }: PageProps) {
   const searchParams = useSearchParams()
   const deckListId = searchParams.get('list')
   const playerName = searchParams.get('player')
@@ -376,5 +376,13 @@ export default function DeckPage({ params }: PageProps) {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function DeckPage({ params }: PageProps) {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-poke-darker flex items-center justify-center text-gray-400">Loading...</div>}>
+      <DeckPageContent params={params} />
+    </Suspense>
   )
 }
