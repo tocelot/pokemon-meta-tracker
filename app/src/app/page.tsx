@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, FormEvent } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Header } from '@/components/Header'
 import { DeckCard } from '@/components/DeckCard'
 import { CreatorCard } from '@/components/CreatorCard'
@@ -51,6 +52,9 @@ interface GroupedResult extends TournamentResult {
 }
 
 export default function HomePage() {
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get('tab')
+
   const {
     tournaments,
     selectedIds,
@@ -67,11 +71,12 @@ export default function HomePage() {
   const [resultsLoading, setResultsLoading] = useState(false)
   const [customCreators, setCustomCreators] = useState<CustomCreator[]>([])
   const [newHandle, setNewHandle] = useState('')
+  const [activeTab, setActiveTab] = useState(tabParam || 'local')
 
   // Local events state
   const [localEvents, setLocalEvents] = useState<LocalEvent[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
-  const [citySearch, setCitySearch] = useState('Belmont, CA 94002')
+  const [citySearch, setCitySearch] = useState('94002')
   const [searchRadius, setSearchRadius] = useState('50')
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
@@ -267,10 +272,10 @@ export default function HomePage() {
       />
       
       <main className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="local" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-8">
             <TabsTrigger value="local">
-              Local Tournaments
+              Locals
             </TabsTrigger>
             <TabsTrigger value="tournament">
               Tournament Results
@@ -411,36 +416,41 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* City Search */}
+            {/* Location Search */}
             <div className="bg-poke-dark border border-gray-800 rounded-lg p-4 mb-6">
-              <form onSubmit={(e) => { handleCitySearch(e); setSelectedDate(null); }} className="flex gap-3">
-                <div className="flex-1 relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-                  <input
-                    type="text"
-                    value={citySearch}
-                    onChange={(e) => setCitySearch(e.target.value)}
-                    placeholder="City, State ZIP"
-                    className="w-full bg-poke-darker border border-gray-700 rounded-lg px-3 py-2 pl-10 text-white placeholder-gray-500 focus:outline-none focus:border-poke-blue"
-                  />
+              <form onSubmit={(e) => { handleCitySearch(e); setSelectedDate(null); }} className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 flex items-center gap-3">
+                  <label className="text-gray-400 text-sm whitespace-nowrap">Zip Code</label>
+                  <div className="flex-1 relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                    <input
+                      type="text"
+                      value={citySearch}
+                      onChange={(e) => setCitySearch(e.target.value)}
+                      placeholder="e.g. 94002"
+                      className="w-full bg-poke-darker border border-gray-700 rounded-lg px-3 py-2 pl-10 text-white placeholder-gray-500 focus:outline-none focus:border-poke-blue"
+                    />
+                  </div>
                 </div>
-                <select
-                  value={searchRadius}
-                  onChange={(e) => setSearchRadius(e.target.value)}
-                  className="bg-poke-darker border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-poke-blue"
-                >
-                  <option value="25">25 mi</option>
-                  <option value="50">50 mi</option>
-                  <option value="75">75 mi</option>
-                  <option value="100">100 mi</option>
-                </select>
-                <button
-                  type="submit"
-                  className="bg-poke-blue hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                >
-                  <Search className="w-4 h-4" />
-                  Search
-                </button>
+                <div className="flex gap-3">
+                  <select
+                    value={searchRadius}
+                    onChange={(e) => setSearchRadius(e.target.value)}
+                    className="flex-1 sm:flex-none bg-poke-darker border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-poke-blue"
+                  >
+                    <option value="25">25 mi</option>
+                    <option value="50">50 mi</option>
+                    <option value="75">75 mi</option>
+                    <option value="100">100 mi</option>
+                  </select>
+                  <button
+                    type="submit"
+                    className="flex-1 sm:flex-none bg-poke-blue hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Search className="w-4 h-4" />
+                    Search
+                  </button>
+                </div>
               </form>
             </div>
 
@@ -568,11 +578,6 @@ export default function HomePage() {
                                 <MapPin className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
                                 <span>{event.address || `${event.city}, ${event.state}`}</span>
                               </div>
-                              {event.cost && (
-                                <div className="text-gray-400">
-                                  <span className="text-gray-500">Entry:</span> {event.cost.startsWith('$') ? event.cost : `$${event.cost}`}
-                                </div>
-                              )}
                             </div>
                           </div>
 
@@ -606,6 +611,20 @@ export default function HomePage() {
           </TabsContent>
         </Tabs>
       </main>
+
+      <footer className="border-t border-gray-800 py-6 mt-8">
+        <div className="container mx-auto px-4 text-center text-gray-500 text-sm">
+          Made by a pokedad - send any bug reports to{' '}
+          <a
+            href="https://x.com/Tocelot/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-poke-blue hover:underline"
+          >
+            @tocelot
+          </a>
+        </div>
+      </footer>
     </div>
   )
 }
