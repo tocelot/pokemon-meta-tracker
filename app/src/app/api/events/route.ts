@@ -44,6 +44,15 @@ function normalizeShop(s: string): string {
   return s.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 15)
 }
 
+// Normalize address for deduplication (extract street number + name)
+function normalizeAddress(addr: string): string {
+  if (!addr) return ''
+  // Extract just the street portion (e.g., "340 WALNUT ST" from "340 WALNUT ST, REDWOOD CITY, CA 94063, US")
+  const streetPart = addr.split(',')[0] || ''
+  // Remove non-alphanumeric and normalize
+  return streetPart.toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
 // Normalize event type
 function normalizeType(t: string): 'League Cup' | 'League Challenge' {
   if (t.toLowerCase().includes('cup')) return 'League Cup'
@@ -160,7 +169,8 @@ export async function POST(request: Request) {
         if (!isTCGEvent(event.name || '')) continue
 
         const eventType = normalizeType(event.type)
-        const key = `${normalizedDate}-${normalizeShop(event.shop)}-${eventType}`
+        // Dedupe by address + date + type (handles different shop names for same location)
+        const key = `${normalizedDate}-${normalizeAddress(event.address)}-${eventType}`
         if (seenEvents.has(key)) continue
         seenEvents.add(key)
 
@@ -197,8 +207,8 @@ export async function POST(request: Request) {
         // Skip non-TCG events (GO, VGC)
         if (!isTCGEvent(event.name || '')) continue
 
-        // Check for duplicates
-        const key = `${event.date}-${normalizeShop(event.shop)}-${eventType}`
+        // Check for duplicates by address + date + type
+        const key = `${event.date}-${normalizeAddress(event.street_address || '')}-${eventType}`
         if (seenEvents.has(key)) continue
         seenEvents.add(key)
 
