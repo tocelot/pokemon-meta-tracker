@@ -1,4 +1,10 @@
 import { NextResponse } from 'next/server'
+import {
+  readCache,
+  writeCache,
+  isCacheValid,
+  readScraperResults,
+} from '@/lib/cache'
 
 export const revalidate = 3600 // Cache for 1 hour
 
@@ -19,6 +25,29 @@ export interface LocalEvent {
   hasSeniors: boolean
   hasMasters: boolean
   distance?: number
+  source?: 'pokemon.com' | 'pokedata.ovh'
+}
+
+// Parse scraper date format "Tuesday, January 13, 2026" to "2026-01-13"
+function parseScraperDate(dateStr: string): string | null {
+  const match = dateStr.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s*(\d{4})/i)
+  if (!match) return null
+  const months: Record<string, string> = {
+    January: '01', February: '02', March: '03', April: '04', May: '05', June: '06',
+    July: '07', August: '08', September: '09', October: '10', November: '11', December: '12'
+  }
+  return `${match[3]}-${months[match[1]]}-${match[2].padStart(2, '0')}`
+}
+
+// Normalize store names for comparison
+function normalizeShop(s: string): string {
+  return s.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 15)
+}
+
+// Normalize event type
+function normalizeType(t: string): 'League Cup' | 'League Challenge' {
+  if (t.toLowerCase().includes('cup')) return 'League Cup'
+  return 'League Challenge'
 }
 
 // Haversine formula to calculate distance between two points in miles
@@ -99,7 +128,43 @@ export async function POST(request: Request) {
 
     // API returns a direct array of event objects
     let events: LocalEvent[] = []
+    const seenEvents = new Set<string>()
 
+    // HYBRID APPROACH: First add scraper events (includes stores not in pokedata)
+    const scraperData = readScraperResults()
+    if (scraperData?.events) {
+      console.log(`Adding ${scraperData.events.length} scraper events`)
+      for (const event of scraperData.events) {
+        const normalizedDate = parseScraperDate(event.date)
+        if (!normalizedDate) continue
+
+        const eventType = normalizeType(event.type)
+        const key = `${normalizedDate}-${normalizeShop(event.shop)}-${eventType}`
+        if (seenEvents.has(key)) continue
+        seenEvents.add(key)
+
+        events.push({
+          id: event.id || `scraper-${event.shop}-${normalizedDate}`.replace(/\s+/g, '-'),
+          type: eventType,
+          name: event.name || '',
+          date: normalizedDate,
+          time: event.time || '',
+          city: event.city || '',
+          state: event.state || 'CA',
+          country: event.country || 'US',
+          shop: event.shop || '',
+          address: event.address || '',
+          cost: '',
+          registrationUrl: '',
+          hasJuniors: true,
+          hasSeniors: true,
+          hasMasters: true,
+          source: 'pokemon.com',
+        })
+      }
+    }
+
+    // Then add pokedata events (with deduplication)
     if (Array.isArray(data)) {
       for (const event of data) {
         // Only include League Cups and League Challenges
@@ -107,6 +172,11 @@ export async function POST(request: Request) {
         if (eventType !== 'League Cup' && eventType !== 'League Challenge') {
           continue
         }
+
+        // Check for duplicates
+        const key = `${event.date}-${normalizeShop(event.shop)}-${eventType}`
+        if (seenEvents.has(key)) continue
+        seenEvents.add(key)
 
         // Extract time from the 'when' field (format: "2026-01-11 17:30:00")
         const whenParts = event.when?.split(' ') || []
@@ -145,13 +215,17 @@ export async function POST(request: Request) {
           hasSeniors,
           hasMasters,
           distance,
+          source: 'pokedata.ovh',
         })
       }
 
       // Sort by date first (chronological), then by distance within the same date
       if (latitude && longitude) {
-        // Filter by max distance
-        events = events.filter(e => e.distance !== undefined && e.distance <= maxDistance)
+        // Filter by max distance (only for pokedata events with coordinates)
+        events = events.filter(e => {
+          if (e.source === 'pokemon.com') return true // Always include scraper events
+          return e.distance !== undefined && e.distance <= maxDistance
+        })
         // Sort by date first, then by distance
         events.sort((a, b) => {
           const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -168,7 +242,15 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ events, total: events.length })
+    const fromScraper = events.filter(e => e.source === 'pokemon.com').length
+    const fromPokedata = events.filter(e => e.source === 'pokedata.ovh').length
+    console.log(`Combined: ${events.length} total (${fromScraper} from scraper, ${fromPokedata} from pokedata)`)
+
+    return NextResponse.json({
+      events,
+      total: events.length,
+      sources: { scraper: fromScraper, pokedata: fromPokedata }
+    })
   } catch (error) {
     console.error('Error fetching events:', error)
     return NextResponse.json({ events: [], error: 'Failed to fetch events' })
