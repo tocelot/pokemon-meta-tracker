@@ -185,8 +185,8 @@ export async function POST(request: Request) {
         if (!isTCGEvent(event.name || '')) continue
 
         const eventType = normalizeType(event.type)
-        // Dedupe by address + date + type (handles different shop names for same location)
-        const key = `${normalizedDate}-${normalizeAddress(event.address)}-${eventType}`
+        // Dedupe by date + time + store name
+        const key = `${normalizedDate}-${event.time || ''}-${normalizeShop(event.shop)}-${eventType}`
         if (seenEvents.has(key)) continue
         seenEvents.add(key)
 
@@ -223,14 +223,14 @@ export async function POST(request: Request) {
         // Skip non-TCG events (GO, VGC)
         if (!isTCGEvent(event.name || '')) continue
 
-        // Check for duplicates by address + date + type
-        const key = `${event.date}-${normalizeAddress(event.street_address || '')}-${eventType}`
-        if (seenEvents.has(key)) continue
-        seenEvents.add(key)
-
         // Extract time from the 'when' field (format: "2026-01-11 17:30:00")
         const whenParts = event.when?.split(' ') || []
         const time = formatTime(whenParts[1]?.slice(0, 5) || '') // Convert to 12-hour format
+
+        // Check for duplicates by date + time + store name
+        const key = `${event.date}-${time}-${normalizeShop(event.shop)}-${eventType}`
+        if (seenEvents.has(key)) continue
+        seenEvents.add(key)
 
         // Determine age divisions based on participant counts
         const hasJuniors = parseInt(event.juniors || '0') > 0
