@@ -202,7 +202,7 @@ export async function POST(request: Request) {
           shop: event.shop || '',
           address: event.address || '',
           cost: '',
-          registrationUrl: '',
+          registrationUrl: 'https://events.pokemon.com/en-us/events',
           hasJuniors: true,
           hasSeniors: true,
           hasMasters: true,
