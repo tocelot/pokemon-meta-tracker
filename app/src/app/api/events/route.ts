@@ -77,6 +77,22 @@ function isTCGEvent(name: string): boolean {
   return true
 }
 
+// Convert time to 12-hour format with AM/PM
+function formatTime(timeStr: string): string {
+  if (!timeStr) return ''
+  // Already has AM/PM, return as-is
+  if (timeStr.includes('AM') || timeStr.includes('PM')) return timeStr
+  // Parse 24-hour format (e.g., "17:30" -> "05:30 PM")
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})/)
+  if (!match) return timeStr
+  let hour = parseInt(match[1])
+  const minute = match[2]
+  const period = hour >= 12 ? 'PM' : 'AM'
+  if (hour > 12) hour -= 12
+  if (hour === 0) hour = 12
+  return `${hour.toString().padStart(2, '0')}:${minute} ${period}`
+}
+
 // Haversine formula to calculate distance between two points in miles
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 3959 // Earth's radius in miles
@@ -214,7 +230,7 @@ export async function POST(request: Request) {
 
         // Extract time from the 'when' field (format: "2026-01-11 17:30:00")
         const whenParts = event.when?.split(' ') || []
-        const time = whenParts[1]?.slice(0, 5) || '' // Get HH:MM
+        const time = formatTime(whenParts[1]?.slice(0, 5) || '') // Convert to 12-hour format
 
         // Determine age divisions based on participant counts
         const hasJuniors = parseInt(event.juniors || '0') > 0
