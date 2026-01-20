@@ -50,6 +50,24 @@ function normalizeType(t: string): 'League Cup' | 'League Challenge' {
   return 'League Challenge'
 }
 
+// Check if event is TCG (not GO or VGC)
+function isTCGEvent(name: string): boolean {
+  const upperName = name.toUpperCase()
+  // Exclude Pokemon GO events
+  if (upperName.includes('GO ') || upperName.includes('GO!') ||
+      upperName.startsWith('GO ') || upperName.includes(' GO ') ||
+      upperName.includes('POKEMON GO') || upperName.includes('LEAUGE')) {
+    // "LEAUGE" is a common misspelling in GO events
+    if (upperName.includes('GO')) return false
+  }
+  // Exclude VGC (Video Game Championship) events
+  if (upperName.includes('VGC') || upperName.includes('VG ') ||
+      upperName.startsWith('VG ') || upperName.includes(' VG ')) {
+    return false
+  }
+  return true
+}
+
 // Haversine formula to calculate distance between two points in miles
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 3959 // Earth's radius in miles
@@ -133,10 +151,13 @@ export async function POST(request: Request) {
     // HYBRID APPROACH: First add scraper events (includes stores not in pokedata)
     const scraperData = readScraperResults()
     if (scraperData?.events) {
-      console.log(`Adding ${scraperData.events.length} scraper events`)
+      console.log(`Processing ${scraperData.events.length} scraper events`)
       for (const event of scraperData.events) {
         const normalizedDate = parseScraperDate(event.date)
         if (!normalizedDate) continue
+
+        // Skip non-TCG events (GO, VGC)
+        if (!isTCGEvent(event.name || '')) continue
 
         const eventType = normalizeType(event.type)
         const key = `${normalizedDate}-${normalizeShop(event.shop)}-${eventType}`
@@ -172,6 +193,9 @@ export async function POST(request: Request) {
         if (eventType !== 'League Cup' && eventType !== 'League Challenge') {
           continue
         }
+
+        // Skip non-TCG events (GO, VGC)
+        if (!isTCGEvent(event.name || '')) continue
 
         // Check for duplicates
         const key = `${event.date}-${normalizeShop(event.shop)}-${eventType}`
