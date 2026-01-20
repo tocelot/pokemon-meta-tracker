@@ -204,6 +204,15 @@ export function EventCalendar({ events, selectedDate, onSelectDate, onDateRangeC
           // Format time to compact 12-hour format
           const formatTime = (time: string) => {
             if (!time) return ''
+            // Check if already has AM/PM (e.g., "05:00 PM")
+            const ampmMatch = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+            if (ampmMatch) {
+              const hour = parseInt(ampmMatch[1])
+              const minutes = ampmMatch[2]
+              const ampm = ampmMatch[3].toLowerCase()[0] // 'a' or 'p'
+              return `${hour}${minutes !== '00' ? ':' + minutes : ''}${ampm}`
+            }
+            // Handle 24-hour format
             const [hours, minutes] = time.split(':')
             const hour = parseInt(hours)
             const ampm = hour >= 12 ? 'p' : 'a'

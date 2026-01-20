@@ -534,15 +534,8 @@ function HomePageContent() {
                     year: 'numeric'
                   })
 
-                  // Format time to 12-hour format
-                  let formattedTime = ''
-                  if (event.time) {
-                    const [hours, minutes] = event.time.split(':')
-                    const hour = parseInt(hours)
-                    const ampm = hour >= 12 ? 'PM' : 'AM'
-                    const hour12 = hour % 12 || 12
-                    formattedTime = `${hour12}:${minutes} ${ampm}`
-                  }
+                  // Use time as-is (already formatted by API)
+                  const formattedTime = event.time || ''
 
                   const isLeagueCup = event.type === 'League Cup'
 
