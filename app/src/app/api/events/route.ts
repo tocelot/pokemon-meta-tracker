@@ -185,8 +185,8 @@ export async function POST(request: Request) {
         if (!isTCGEvent(event.name || '')) continue
 
         const eventType = normalizeType(event.type)
-        // Dedupe by date + time + store name
-        const key = `${normalizedDate}-${event.time || ''}-${normalizeShop(event.shop)}-${eventType}`
+        // Dedupe by date + time + store name (same store, same date, same time = duplicate)
+        const key = `${normalizedDate}-${event.time || ''}-${normalizeShop(event.shop)}`
         if (seenEvents.has(key)) continue
         seenEvents.add(key)
 
@@ -227,8 +227,8 @@ export async function POST(request: Request) {
         const whenParts = event.when?.split(' ') || []
         const time = formatTime(whenParts[1]?.slice(0, 5) || '') // Convert to 12-hour format
 
-        // Check for duplicates by date + time + store name
-        const key = `${event.date}-${time}-${normalizeShop(event.shop)}-${eventType}`
+        // Check for duplicates by date + time + store name (same store, same date, same time = duplicate)
+        const key = `${event.date}-${time}-${normalizeShop(event.shop)}`
         if (seenEvents.has(key)) continue
         seenEvents.add(key)
 
