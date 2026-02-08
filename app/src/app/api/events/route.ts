@@ -39,9 +39,9 @@ function parseScraperDate(dateStr: string): string | null {
   return `${match[3]}-${months[match[1]]}-${match[2].padStart(2, '0')}`
 }
 
-// Normalize store names for comparison
+// Normalize store names for comparison (shorter length to match partial names like "Angry Goose" vs "Angry Goose Games")
 function normalizeShop(s: string): string {
-  return s.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 15)
+  return s.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 10)
 }
 
 // Normalize address for deduplication (extract street number + name)
