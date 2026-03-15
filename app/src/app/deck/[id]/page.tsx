@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Header } from '@/components/Header'
@@ -64,6 +64,9 @@ function DeckPageContent({ params }: PageProps) {
   const [averages, setAverages] = useState<AveragesByCategory | null>(null)
   const [deckCount, setDeckCount] = useState(0)
   const [averagesLoading, setAveragesLoading] = useState(false)
+  const [myDeckText, setMyDeckText] = useState('')
+  const [myDeck, setMyDeck] = useState<DeckListType | null>(null)
+  const [showPasteBox, setShowPasteBox] = useState(false)
 
   useEffect(() => {
     params.then(p => setId(p.id))
@@ -222,8 +225,67 @@ function DeckPageContent({ params }: PageProps) {
     }
   }
 
-  function AvgTable({ title, cards }: { title: string; cards: AverageCard[] }) {
+  function parsePTCGLiveDeck(text: string): DeckListType {
+    const pokemon: CardEntry[] = []
+    const trainers: CardEntry[] = []
+    const energy: CardEntry[] = []
+    let current: CardEntry[] = pokemon
+
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      if (/^pok[eé]mon/i.test(trimmed)) { current = pokemon; continue }
+      if (/^trainer/i.test(trimmed)) { current = trainers; continue }
+      if (/^energy/i.test(trimmed)) { current = energy; continue }
+      if (/^total cards/i.test(trimmed)) continue
+
+      const match = trimmed.match(/^(\d+)\s+(.+?)\s+([A-Z]{2,5}\d*)\s+(\d+)$/)
+      if (match) {
+        current.push({
+          count: parseInt(match[1]),
+          name: match[2].trim(),
+          setCode: match[3],
+          setNumber: match[4],
+        })
+      }
+    }
+    return { pokemon, trainers, energy }
+  }
+
+  function handlePasteDeck() {
+    if (!myDeckText.trim()) {
+      setMyDeck(null)
+      return
+    }
+    const parsed = parsePTCGLiveDeck(myDeckText)
+    const totalCards = parsed.pokemon.length + parsed.trainers.length + parsed.energy.length
+    if (totalCards > 0) {
+      setMyDeck(parsed)
+      setShowPasteBox(false)
+    }
+  }
+
+  // Build a lookup map from user's deck: card name -> count
+  const myDeckMap = useMemo(() => {
+    if (!myDeck) return null
+    const map = new Map<string, number>()
+    for (const card of [...myDeck.pokemon, ...myDeck.trainers, ...myDeck.energy]) {
+      map.set(card.name, (map.get(card.name) || 0) + card.count)
+    }
+    return map
+  }, [myDeck])
+
+  function AvgTable({ title, cards, myCards }: { title: string; cards: AverageCard[]; myCards: CardEntry[] | null }) {
     if (cards.length === 0) return null
+
+    // Build set of card names in avg list for finding extras in user deck
+    const avgCardNames = new Set(cards.map(c => c.name))
+
+    // Cards in user's deck for this category that aren't in the avg list
+    const extraCards = myCards
+      ? myCards.filter(c => !avgCardNames.has(c.name))
+      : []
+
     return (
       <div>
         <h4 className="text-lg font-semibold text-white mb-3">{title}</h4>
@@ -231,18 +293,57 @@ function DeckPageContent({ params }: PageProps) {
           <thead>
             <tr className="text-gray-400 border-b border-gray-700">
               <th className="text-left py-2">Card</th>
+              {myDeckMap && <th className="text-right py-2">Mine</th>}
               <th className="text-right py-2">Avg</th>
               <th className="text-right py-2">Range</th>
               <th className="text-right py-2">Play Rate</th>
             </tr>
           </thead>
           <tbody>
-            {cards.map((card, idx) => (
-              <tr key={idx} className="border-b border-gray-800">
+            {cards.map((card, idx) => {
+              const myCount = myDeckMap?.get(card.name) ?? null
+              const diff = myCount !== null ? myCount - card.avgCount : null
+              const hasDiff = diff !== null && Math.abs(diff) >= 0.5
+
+              return (
+                <tr key={idx} className={`border-b border-gray-800 ${hasDiff ? (diff! > 0 ? 'bg-green-500/5' : 'bg-red-500/5') : ''}`}>
+                  <td className="py-2 text-white">{card.name}</td>
+                  {myDeckMap && (
+                    <td className="py-2 text-right">
+                      {myCount !== null ? (
+                        <span className={hasDiff ? (diff! > 0 ? 'text-green-400 font-medium' : 'text-red-400 font-medium') : 'text-gray-300'}>
+                          {myCount}
+                          {hasDiff && (
+                            <span className="text-xs ml-1">
+                              ({diff! > 0 ? '+' : ''}{Math.round(diff! * 10) / 10})
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-red-400/60">-</span>
+                      )}
+                    </td>
+                  )}
+                  <td className="py-2 text-right text-poke-yellow">{card.avgCount}</td>
+                  <td className="py-2 text-right text-gray-400">{card.minCount}-{card.maxCount}</td>
+                  <td className="py-2 text-right text-poke-blue">{card.playRate}%</td>
+                </tr>
+              )
+            })}
+            {extraCards.map((card, idx) => (
+              <tr key={'extra-' + idx} className="border-b border-gray-800 bg-blue-500/5">
                 <td className="py-2 text-white">{card.name}</td>
-                <td className="py-2 text-right text-poke-yellow">{card.avgCount}</td>
-                <td className="py-2 text-right text-gray-400">{card.minCount}-{card.maxCount}</td>
-                <td className="py-2 text-right text-poke-blue">{card.playRate}%</td>
+                {myDeckMap && (
+                  <td className="py-2 text-right">
+                    <span className="text-blue-400 font-medium">
+                      {card.count}
+                      <span className="text-xs ml-1">(unique)</span>
+                    </span>
+                  </td>
+                )}
+                <td className="py-2 text-right text-gray-500">-</td>
+                <td className="py-2 text-right text-gray-500">-</td>
+                <td className="py-2 text-right text-gray-500">0%</td>
               </tr>
             ))}
           </tbody>
@@ -401,13 +502,70 @@ function DeckPageContent({ params }: PageProps) {
           <h2 className="text-2xl font-bold text-white mb-2">
             Average Card Counts of Day 2 Decks
           </h2>
-          <p className="text-gray-400 text-sm mb-6">
-            {averagesLoading
-              ? 'Loading averages...'
-              : deckCount > 0
-              ? 'Based on ' + deckCount + ' deck' + (deckCount !== 1 ? 's' : '') + ' that made Day 2 (top 32)'
-              : 'No Day 2 deck data available for this archetype'}
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+            <p className="text-gray-400 text-sm">
+              {averagesLoading
+                ? 'Loading averages...'
+                : deckCount > 0
+                ? 'Based on ' + deckCount + ' deck' + (deckCount !== 1 ? 's' : '') + ' that made Day 2 (top 32)'
+                : 'No Day 2 deck data available for this archetype'}
+            </p>
+            {averages && (
+              <div className="flex items-center gap-2">
+                {myDeck && (
+                  <button
+                    onClick={() => { setMyDeck(null); setMyDeckText(''); setShowPasteBox(false) }}
+                    className="text-sm px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30 transition-colors"
+                  >
+                    Clear My Deck
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowPasteBox(!showPasteBox)}
+                  className="text-sm px-3 py-1.5 rounded-lg bg-poke-blue/20 text-poke-blue border border-poke-blue/50 hover:bg-poke-blue/30 transition-colors"
+                >
+                  {myDeck ? 'Update My Deck' : 'Compare My Deck'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {showPasteBox && (
+            <div className="mb-6 bg-poke-dark border border-gray-700 rounded-lg p-4">
+              <p className="text-gray-300 text-sm mb-3">
+                Paste your deck list from PTCG Live (export format):
+              </p>
+              <textarea
+                value={myDeckText}
+                onChange={(e) => setMyDeckText(e.target.value)}
+                placeholder={`Pokémon: 13\n4 Charcadet PFL 19\n3 Ceruledge ex SSP 36\n...\n\nTrainer: 26\n4 Carmine TWM 145\n...\n\nEnergy: 21\n11 Fighting Energy MEE 6\n...`}
+                className="w-full h-48 bg-poke-darker border border-gray-700 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-poke-blue resize-none"
+              />
+              <div className="flex justify-end gap-3 mt-3">
+                <button
+                  onClick={() => { setShowPasteBox(false); setMyDeckText('') }}
+                  className="text-sm px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePasteDeck}
+                  className="text-sm px-4 py-2 bg-poke-blue hover:bg-blue-600 text-white rounded-lg transition-colors"
+                >
+                  Compare
+                </button>
+              </div>
+            </div>
+          )}
+
+          {myDeck && averages && (
+            <div className="mb-6 flex flex-wrap items-center gap-4 text-xs">
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-green-500/20 border border-green-500/30"></span><span className="text-gray-400">More than average</span></span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-500/20 border border-red-500/30"></span><span className="text-gray-400">Less than average</span></span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-blue-500/20 border border-blue-500/30"></span><span className="text-gray-400">Unique to my deck</span></span>
+              <span className="flex items-center gap-1.5"><span className="text-red-400/60">-</span><span className="text-gray-400">Not in my deck</span></span>
+            </div>
+          )}
 
           {averagesLoading ? (
             <div className="bg-poke-dark border border-gray-800 rounded-lg p-6">
@@ -420,9 +578,9 @@ function DeckPageContent({ params }: PageProps) {
             </div>
           ) : averages ? (
             <div className="bg-poke-dark border border-gray-800 rounded-lg p-6 space-y-8">
-              <AvgTable title="Pokemon" cards={averages.pokemon} />
-              <AvgTable title="Trainers" cards={averages.trainers} />
-              <AvgTable title="Energy" cards={averages.energy} />
+              <AvgTable title="Pokemon" cards={averages.pokemon} myCards={myDeck?.pokemon || null} />
+              <AvgTable title="Trainers" cards={averages.trainers} myCards={myDeck?.trainers || null} />
+              <AvgTable title="Energy" cards={averages.energy} myCards={myDeck?.energy || null} />
             </div>
           ) : null}
         </div>
