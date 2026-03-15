@@ -41,9 +41,9 @@ interface LocalEvent {
 const META_DATA = {
   lastUpdated: new Date().toISOString(),
   currentSet: {
-    name: 'Phantasmal Flames',
-    releaseDate: '2025-11-14',
-    code: 'PFL',
+    name: 'Ascended Heroes',
+    releaseDate: '2026-03-06',
+    code: 'ASH',
   },
 }
 
