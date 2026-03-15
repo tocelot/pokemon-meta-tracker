@@ -114,9 +114,7 @@ export async function POST(request: Request) {
     // Build base request body for pokedata API
     // IMPORTANT: ftcg must be disabled to exclude "nonpremier TCG" events
     // We make separate requests for cups and challenges to avoid the 100 event limit
-    // past: '1' includes today's events that pokedata considers "past" after their start time
-    const baseBody = {
-      past: '1',
+    const sharedBody = {
       country: country,
       city: '',
       shop: '',
@@ -143,34 +141,46 @@ export async function POST(request: Request) {
     // Parse radius for distance filtering
     const maxDistance = parseInt(radius) || 50
 
-    // Make separate requests for cups and challenges to get more events
-    // Each request can return up to 100 events, so splitting doubles our coverage
-    const [cupsResponse, challengesResponse] = await Promise.all([
+    // Fetch future events (past:'') AND past events (past:'1') to catch today's
+    // events that pokedata considers "past" after their start time passes.
+    // We then merge and deduplicate.
+    const fetchPokedata = (overrides: Record<string, string>) =>
       fetch('https://pokedata.ovh/events/tableapi/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-        body: JSON.stringify({ ...baseBody, cups: '1', challenges: '' }),
-      }),
-      fetch('https://pokedata.ovh/events/tableapi/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-        body: JSON.stringify({ ...baseBody, cups: '', challenges: '1' }),
-      }),
+        body: JSON.stringify({ ...sharedBody, ...overrides }),
+      })
+
+    const [futureCups, futureChallenges, pastCups, pastChallenges] = await Promise.all([
+      fetchPokedata({ past: '', cups: '1', challenges: '' }),
+      fetchPokedata({ past: '', cups: '', challenges: '1' }),
+      fetchPokedata({ past: '1', cups: '1', challenges: '' }),
+      fetchPokedata({ past: '1', cups: '', challenges: '1' }),
     ])
 
-    if (!cupsResponse.ok || !challengesResponse.ok) {
-      throw new Error(`Pokedata API returned error`)
-    }
-
-    const [cupsData, challengesData] = await Promise.all([
-      cupsResponse.json(),
-      challengesResponse.json(),
+    const [futureCupsData, futureChallengesData, pastCupsData, pastChallengesData] = await Promise.all([
+      futureCups.ok ? futureCups.json() : [],
+      futureChallenges.ok ? futureChallenges.json() : [],
+      pastCups.ok ? pastCups.json() : [],
+      pastChallenges.ok ? pastChallenges.json() : [],
     ])
 
-    // Merge the results and filter out events before today
+    // Merge all results, deduplicate by guid, and filter to today onwards
     const todayStr = new Date().toISOString().split('T')[0]
-    const allData = [...(Array.isArray(cupsData) ? cupsData : []), ...(Array.isArray(challengesData) ? challengesData : [])]
-    const data = allData.filter(e => !e.date || e.date >= todayStr)
+    const seenGuids = new Set<string>()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any[] = []
+    for (const arr of [futureCupsData, futureChallengesData, pastCupsData, pastChallengesData]) {
+      if (!Array.isArray(arr)) continue
+      for (const event of arr) {
+        const key = event.guid || `${event.date}-${event.shop}-${event.type}`
+        if (seenGuids.has(key)) continue
+        seenGuids.add(key)
+        if (!event.date || event.date >= todayStr) {
+          data.push(event)
+        }
+      }
+    }
 
     // API returns a direct array of event objects
     let events: LocalEvent[] = []

@@ -92,34 +92,54 @@ interface PokedataEvent {
 }
 
 async function fetchPokedataEvents(state: string = 'California'): Promise<PokedataEvent[]> {
-  const baseBody = {
-    past: '1', country: 'US', city: '', shop: '', league: '',
+  const sharedBody = {
+    country: 'US', city: '', shop: '', league: '',
     states: JSON.stringify([state]),
     postcode: '', vcups: '', vchallenges: '', prereleases: '', premier: '',
     go: '', gocup: '', mss: '', ftcg: '', fvg: '', fgo: '',
     latitude: '', longitude: '', radius: '', unit: 'mi', width: 1200
   }
 
+  const fetchPoke = (overrides: Record<string, string>) =>
+    fetch('https://pokedata.ovh/events/tableapi/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...sharedBody, ...overrides })
+    })
+
   try {
-    const [cupsRes, challengesRes] = await Promise.all([
-      fetch('https://pokedata.ovh/events/tableapi/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...baseBody, cups: '1', challenges: '' })
-      }),
-      fetch('https://pokedata.ovh/events/tableapi/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...baseBody, cups: '', challenges: '1' })
-      })
+    // Fetch both future (past:'') and past (past:'1') to catch today's events
+    // that pokedata considers "past" after their start time
+    const [futureCups, futureChallenges, pastCups, pastChallenges] = await Promise.all([
+      fetchPoke({ past: '', cups: '1', challenges: '' }),
+      fetchPoke({ past: '', cups: '', challenges: '1' }),
+      fetchPoke({ past: '1', cups: '1', challenges: '' }),
+      fetchPoke({ past: '1', cups: '', challenges: '1' }),
     ])
 
-    const cups = await cupsRes.json() as PokedataEvent[]
-    const challenges = await challengesRes.json() as PokedataEvent[]
+    const [fc, fch, pc, pch] = await Promise.all([
+      futureCups.ok ? futureCups.json() as Promise<PokedataEvent[]> : [],
+      futureChallenges.ok ? futureChallenges.json() as Promise<PokedataEvent[]> : [],
+      pastCups.ok ? pastCups.json() as Promise<PokedataEvent[]> : [],
+      pastChallenges.ok ? pastChallenges.json() as Promise<PokedataEvent[]> : [],
+    ])
 
-    // Filter out events before today (past:'1' includes them for today's same-day events)
+    // Merge and deduplicate by guid, filter to today onwards
     const todayStr = new Date().toISOString().split('T')[0]
-    return [...cups, ...challenges].filter(e => !e.date || e.date >= todayStr)
+    const seen = new Set<string>()
+    const results: PokedataEvent[] = []
+    for (const arr of [fc, fch, pc, pch]) {
+      if (!Array.isArray(arr)) continue
+      for (const e of arr) {
+        const key = e.guid || `${e.date}-${e.shop}-${e.type}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        if (!e.date || e.date >= todayStr) {
+          results.push(e)
+        }
+      }
+    }
+    return results
   } catch (error) {
     console.error('Error fetching from pokedata.ovh:', error)
     return []
