@@ -80,6 +80,21 @@ function DeckPageContent({ params }: PageProps) {
       try {
         const found: DeckEntry[] = []
 
+        // Read selected tournament IDs and division from localStorage
+        let selectedTournamentIds: string[] = []
+        let division = ''
+        try {
+          const stored = localStorage.getItem('pokemon-tcg-meta-selected-tournaments')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            selectedTournamentIds = parsed.selectedIds || []
+          }
+          division = localStorage.getItem('pokemon-tcg-meta-division') || ''
+        } catch {
+          // ignore parse errors
+        }
+        const divisionParam = division ? `?division=${division}` : ''
+
         // If a specific deck list ID was provided, fetch it first
         if (deckListId) {
           const response = await fetch('/api/limitless/decklist/' + deckListId)
@@ -97,14 +112,48 @@ function DeckPageContent({ params }: PageProps) {
           }
         }
 
-        // Search tournaments for more deck lists of this archetype
-        if (id && found.length < 3) {
+        // Search selected tournaments for more deck lists of this archetype
+        if (id && found.length < 3 && selectedTournamentIds.length > 0) {
+          for (const tournamentId of selectedTournamentIds) {
+            if (found.length >= 3) break
+            const resultsRes = await fetch('/api/limitless/tournaments/' + tournamentId + '/results' + divisionParam)
+            if (!resultsRes.ok) continue
+            const results = await resultsRes.json()
+            const matches = results
+              .filter((r: { deckId: string; deckListId?: string }) => r.deckId === id && r.deckListId)
+              .sort((a: { placement: number }, b: { placement: number }) => a.placement - b.placement)
+
+            // Get tournament name from results
+            const tName = results[0]?.tournament?.name || ''
+
+            for (const match of matches) {
+              if (found.length >= 3) break
+              if (found.some(f => f.deckListId === match.deckListId)) continue
+
+              const deckRes = await fetch('/api/limitless/decklist/' + match.deckListId)
+              if (!deckRes.ok) continue
+              const deckData = await deckRes.json()
+              if (deckData.pokemon?.length > 0 || deckData.trainers?.length > 0 || deckData.energy?.length > 0) {
+                found.push({
+                  deckList: deckData,
+                  playerName: match.playerName || '',
+                  placement: match.placement,
+                  deckListId: match.deckListId,
+                  tournamentName: tName || match.tournament?.name || '',
+                })
+              }
+            }
+          }
+        }
+
+        // Fallback: if no selected tournaments or no results, search all tournaments
+        if (id && found.length < 3 && selectedTournamentIds.length === 0) {
           const tournamentsRes = await fetch('/api/limitless/tournaments')
           if (tournamentsRes.ok) {
             const tournaments = await tournamentsRes.json()
             for (const tournament of tournaments.slice(0, 5)) {
               if (found.length >= 3) break
-              const resultsRes = await fetch('/api/limitless/tournaments/' + tournament.id + '/results')
+              const resultsRes = await fetch('/api/limitless/tournaments/' + tournament.id + '/results' + divisionParam)
               if (!resultsRes.ok) continue
               const results = await resultsRes.json()
               const matches = results
@@ -113,7 +162,6 @@ function DeckPageContent({ params }: PageProps) {
 
               for (const match of matches) {
                 if (found.length >= 3) break
-                // Skip if we already have this deck list
                 if (found.some(f => f.deckListId === match.deckListId)) continue
 
                 const deckRes = await fetch('/api/limitless/decklist/' + match.deckListId)
@@ -153,12 +201,33 @@ function DeckPageContent({ params }: PageProps) {
       if (!id) return
       setAveragesLoading(true)
       try {
-        const tournamentsRes = await fetch('/api/limitless/tournaments')
-        if (!tournamentsRes.ok) return
-        const tournaments = await tournamentsRes.json()
+        // Read selected tournament IDs and division from localStorage
+        let selectedTournamentIds: string[] = []
+        let division = ''
+        try {
+          const stored = localStorage.getItem('pokemon-tcg-meta-selected-tournaments')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            selectedTournamentIds = parsed.selectedIds || []
+          }
+          division = localStorage.getItem('pokemon-tcg-meta-division') || ''
+        } catch {
+          // ignore
+        }
+        const divisionParam = division ? `?division=${division}` : ''
+
+        // Use selected tournaments, or fall back to all
+        let tournamentIds = selectedTournamentIds
+        if (tournamentIds.length === 0) {
+          const tournamentsRes = await fetch('/api/limitless/tournaments')
+          if (!tournamentsRes.ok) return
+          const tournaments = await tournamentsRes.json()
+          tournamentIds = tournaments.slice(0, 5).map((t: { id: string }) => t.id)
+        }
+
         const allDeckLists: DeckListType[] = []
-        for (const tournament of tournaments.slice(0, 5)) {
-          const resultsRes = await fetch('/api/limitless/tournaments/' + tournament.id + '/results')
+        for (const tournamentId of tournamentIds) {
+          const resultsRes = await fetch('/api/limitless/tournaments/' + tournamentId + '/results' + divisionParam)
           if (!resultsRes.ok) continue
           const results = await resultsRes.json()
           const day2Results = results.filter((r: { deckId: string; placement: number; deckListId?: string }) =>

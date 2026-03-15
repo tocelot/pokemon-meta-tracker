@@ -98,7 +98,11 @@ function HomePageContent() {
 
   const [results, setResults] = useState<TournamentResult[]>([])
   const [resultsLoading, setResultsLoading] = useState(false)
-  const [division, setDivision] = useState<'' | 'JR' | 'SR'>('JR')
+  const [division, setDivisionState] = useState<'' | 'JR' | 'SR'>('JR')
+  const setDivision = (d: '' | 'JR' | 'SR') => {
+    setDivisionState(d)
+    localStorage.setItem('pokemon-tcg-meta-division', d)
+  }
   const [customCreators, setCustomCreators] = useState<CustomCreator[]>([])
   const [newHandle, setNewHandle] = useState('')
   const [activeTab, setActiveTab] = useState(tabParam || 'local')
