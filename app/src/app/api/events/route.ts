@@ -166,7 +166,7 @@ export async function POST(request: Request) {
     ])
 
     // Merge all results, deduplicate by guid, and filter to today onwards
-    const todayStr = new Date().toISOString().split('T')[0]
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
     const seenGuids = new Set<string>()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any[] = []
@@ -176,7 +176,7 @@ export async function POST(request: Request) {
         const key = event.guid || `${event.date}-${event.shop}-${event.type}`
         if (seenGuids.has(key)) continue
         seenGuids.add(key)
-        if (!event.date || event.date >= todayStr) {
+        if (!event.date || event.date >= yesterday) {
           data.push(event)
         }
       }
@@ -193,7 +193,7 @@ export async function POST(request: Request) {
       for (const event of scraperData.events) {
         const normalizedDate = parseScraperDate(event.date)
         if (!normalizedDate) continue
-        if (normalizedDate < todayStr) continue
+        if (normalizedDate < yesterday) continue
 
         // Skip non-TCG events (GO, VGC)
         if (!isTCGEvent(event.name || '')) continue

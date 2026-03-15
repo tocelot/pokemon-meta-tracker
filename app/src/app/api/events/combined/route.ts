@@ -125,7 +125,7 @@ async function fetchPokedataEvents(state: string = 'California'): Promise<Pokeda
     ])
 
     // Merge and deduplicate by guid, filter to today onwards
-    const todayStr = new Date().toISOString().split('T')[0]
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
     const seen = new Set<string>()
     const results: PokedataEvent[] = []
     for (const arr of [fc, fch, pc, pch]) {
@@ -134,7 +134,7 @@ async function fetchPokedataEvents(state: string = 'California'): Promise<Pokeda
         const key = e.guid || `${e.date}-${e.shop}-${e.type}`
         if (seen.has(key)) continue
         seen.add(key)
-        if (!e.date || e.date >= todayStr) {
+        if (!e.date || e.date >= yesterday) {
           results.push(e)
         }
       }
@@ -184,13 +184,13 @@ async function buildCombinedData(
   // Combine events
   const combinedEvents: LocalEvent[] = []
   const seenEvents = new Set<string>()
-  const todayStr = new Date().toISOString().split('T')[0]
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
 
   // Add scraper events first (they include stores not in pokedata)
   scraperEvents.forEach(e => {
     const normalizedDate = parseScraperDate(e.date)
     if (!normalizedDate) return
-    if (normalizedDate < todayStr) return
+    if (normalizedDate < yesterday) return
 
     const eventType = normalizeType(e.type)
     const key = `${normalizedDate}-${normalizeShop(e.shop)}-${eventType}`
