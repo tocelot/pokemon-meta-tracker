@@ -3,6 +3,16 @@ import * as cheerio from 'cheerio'
 
 export const revalidate = 3600 // Cache for 1 hour
 
+interface ResultEntry {
+  deckId: string
+  archetype: { id: string; name: string; primaryPokemon: string[]; tier?: number }
+  tournament: { id: string }
+  placement: number
+  playerName: string
+  deckListId: string | null
+  deckList: { pokemon: never[]; trainers: never[]; energy: never[] }
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -12,28 +22,31 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const division = searchParams.get('division') || '' // 'JR', 'SR', or '' (Masters)
 
+    // For JR/SR, try Labs first for Day 2 data, fall back to main site
+    if (division === 'JR' || division === 'SR') {
+      const labsResults = await fetchLabsResults(id, division)
+      if (labsResults.length > 0) {
+        return NextResponse.json(labsResults)
+      }
+    }
+
+    // Masters or Labs fallback: scrape main tournament page
     const url = division
       ? `https://limitlesstcg.com/tournaments/${id}/${division}`
       : `https://limitlesstcg.com/tournaments/${id}`
 
     const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Pokemon-TCG-Meta-Tracker/1.0',
-      },
+      headers: { 'User-Agent': 'Pokemon-TCG-Meta-Tracker/1.0' },
     })
-    
+
     if (!response.ok) {
       throw new Error('Limitless returned ' + response.status)
     }
-    
+
     const html = await response.text()
-    const maxRank = division === 'JR' || division === 'SR' ? 64 : 32
+    const maxRank = division ? 64 : 32
     const results = parseResults(html, id, maxRank)
-    
-    if (results.length === 0) {
-      return NextResponse.json([])
-    }
-    
+
     return NextResponse.json(results)
   } catch (error) {
     console.error('Error fetching tournament results:', error)
@@ -41,29 +54,103 @@ export async function GET(
   }
 }
 
-function parseResults(html: string, tournamentId: string, maxRank: number = 32) {
+// Fetch Day 2 results from Limitless Labs for JR/SR divisions
+async function fetchLabsResults(tournamentId: string, division: string): Promise<ResultEntry[]> {
+  try {
+    // First, get the Labs ID from the main tournament page
+    const mainPage = await fetch(`https://limitlesstcg.com/tournaments/${tournamentId}`, {
+      headers: { 'User-Agent': 'Pokemon-TCG-Meta-Tracker/1.0' },
+    })
+    if (!mainPage.ok) return []
+
+    const mainHtml = await mainPage.text()
+    const $main = cheerio.load(mainHtml)
+
+    // Find Labs link like "https://labs.limitlesstcg.com/0047/standings"
+    let labsId = ''
+    $main('a[href*="labs.limitlesstcg.com"]').each((_, el) => {
+      const href = $main(el).attr('href') || ''
+      const match = href.match(/labs\.limitlesstcg\.com\/(\d+)/)
+      if (match) labsId = match[1]
+    })
+
+    if (!labsId) return []
+
+    // Fetch Labs standings for the division
+    const labsUrl = `https://labs.limitlesstcg.com/${labsId}/${division}/standings`
+    const labsResponse = await fetch(labsUrl, {
+      headers: { 'User-Agent': 'Pokemon-TCG-Meta-Tracker/1.0' },
+    })
+    if (!labsResponse.ok) return []
+
+    const labsHtml = await labsResponse.text()
+    const $labs = cheerio.load(labsHtml)
+
+    // Extract JSON data from SvelteKit script tags
+    let players: Array<{
+      name: string
+      placement: number
+      day2: number
+      deck_name: string
+      deck_id: string
+      decklist: number
+    }> = []
+
+    $labs('script').each((_, el) => {
+      const text = $labs(el).html() || ''
+      if (text.length > 5000) {
+        try {
+          const parsed = JSON.parse(text)
+          const message = JSON.parse(parsed.body).message
+          if (Array.isArray(message)) {
+            players = message
+          }
+        } catch {
+          // Not the right script tag
+        }
+      }
+    })
+
+    if (players.length === 0) return []
+
+    // Filter to Day 2 players only
+    const day2Players = players.filter(p => p.day2 === 1)
+
+    return day2Players.map(p => ({
+      deckId: p.deck_id || generateDeckId(p.deck_name || 'Unknown'),
+      archetype: {
+        id: p.deck_id || generateDeckId(p.deck_name || 'Unknown'),
+        name: p.deck_name || 'Unknown Deck',
+        primaryPokemon: extractPrimaryPokemon(p.deck_name || ''),
+        tier: p.placement <= 4 ? 1 : p.placement <= 8 ? 2 : 3,
+      },
+      tournament: { id: tournamentId },
+      placement: p.placement,
+      playerName: p.name,
+      deckListId: null,
+      deckList: { pokemon: [] as never[], trainers: [] as never[], energy: [] as never[] },
+    }))
+  } catch (error) {
+    console.error('Error fetching Labs results:', error)
+    return []
+  }
+}
+
+function parseResults(html: string, tournamentId: string, maxRank: number = 32): ResultEntry[] {
   const $ = cheerio.load(html)
-  const results: Array<{
-    deckId: string
-    archetype: { id: string; name: string; primaryPokemon: string[]; tier?: number }
-    tournament: { id: string }
-    placement: number
-    playerName: string
-    deckListId: string | null
-    deckList: { pokemon: never[]; trainers: never[]; energy: never[] }
-  }> = []
-  
+  const results: ResultEntry[] = []
+
   $('tr[data-rank]').each((_, element) => {
     const $row = $(element)
-    
+
     const rank = parseInt($row.attr('data-rank') || '0', 10)
     const playerName = $row.attr('data-name') || ''
     const deckName = $row.attr('data-deck') || 'Unknown Deck'
-    
+
     // Get deck list ID from the link
     const deckListLink = $row.find('a[href*="/decks/list/"]').attr('href') || ''
     const deckListId = deckListLink.split('/').pop() || null
-    
+
     if (rank > 0 && rank <= maxRank && playerName) {
       results.push({
         deckId: generateDeckId(deckName),
@@ -81,7 +168,7 @@ function parseResults(html: string, tournamentId: string, maxRank: number = 32) 
       })
     }
   })
-  
+
   return results
 }
 
