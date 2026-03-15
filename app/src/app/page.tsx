@@ -120,7 +120,7 @@ function HomePageContent() {
     setCalendarDateRange({ start, end })
   }, [])
 
-  // Load custom creators from localStorage on mount
+  // Load custom creators from localStorage on mount and persist default division
   useEffect(() => {
     const saved = localStorage.getItem('customCreators')
     if (saved) {
@@ -130,6 +130,13 @@ function HomePageContent() {
     const savedCity = localStorage.getItem('localEventsCity')
     if (savedCity) {
       setCitySearch(savedCity)
+    }
+    // Load saved division or persist the default
+    const savedDivision = localStorage.getItem('pokemon-tcg-meta-division')
+    if (savedDivision === '' || savedDivision === 'JR' || savedDivision === 'SR') {
+      setDivisionState(savedDivision)
+    } else {
+      localStorage.setItem('pokemon-tcg-meta-division', 'JR')
     }
   }, [])
 
@@ -388,6 +395,7 @@ function HomePageContent() {
                     placements={result.placements}
                     deckListId={result.placements.find(p => p.deckListId)?.deckListId}
                     source="tournament"
+                    division={division}
                   />
                 ))}
               </div>

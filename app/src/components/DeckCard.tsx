@@ -12,6 +12,7 @@ interface DeckCardProps {
   creatorName?: string
   videoUrl?: string
   source: 'tournament' | 'creator'
+  division?: string
 }
 
 export function DeckCard({
@@ -22,7 +23,8 @@ export function DeckCard({
   deckListId,
   creatorName,
   videoUrl,
-  source
+  source,
+  division
 }: DeckCardProps) {
   const tierColors: Record<number, string> = {
     1: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50',
@@ -50,6 +52,9 @@ export function DeckCard({
   }
   // Track which tab the user came from
   params.set('from', source)
+  if (division) {
+    params.set('division', division)
+  }
   const href = '/deck/' + id + '?' + params.toString()
 
   return (

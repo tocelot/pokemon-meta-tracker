@@ -31,6 +31,7 @@ function DeckPageContent({ params }: PageProps) {
   const placement = searchParams.get('placement')
   const tournamentName = searchParams.get('tournament')
   const fromTab = searchParams.get('from')
+  const divisionParam = searchParams.get('division') || ''
   
   const [currentSet, setCurrentSet] = useState(FALLBACK_SET)
 
@@ -80,20 +81,18 @@ function DeckPageContent({ params }: PageProps) {
       try {
         const found: DeckEntry[] = []
 
-        // Read selected tournament IDs and division from localStorage
+        // Read selected tournament IDs from localStorage
         let selectedTournamentIds: string[] = []
-        let division = ''
         try {
           const stored = localStorage.getItem('pokemon-tcg-meta-selected-tournaments')
           if (stored) {
             const parsed = JSON.parse(stored)
             selectedTournamentIds = parsed.selectedIds || []
           }
-          division = localStorage.getItem('pokemon-tcg-meta-division') || ''
         } catch {
           // ignore parse errors
         }
-        const divisionParam = division ? `?division=${division}` : ''
+        const divisionQuery = divisionParam ? `?division=${divisionParam}` : ''
 
         // If a specific deck list ID was provided, fetch it first
         if (deckListId) {
@@ -116,7 +115,7 @@ function DeckPageContent({ params }: PageProps) {
         if (id && found.length < 3 && selectedTournamentIds.length > 0) {
           for (const tournamentId of selectedTournamentIds) {
             if (found.length >= 3) break
-            const resultsRes = await fetch('/api/limitless/tournaments/' + tournamentId + '/results' + divisionParam)
+            const resultsRes = await fetch('/api/limitless/tournaments/' + tournamentId + '/results' + divisionQuery)
             if (!resultsRes.ok) continue
             const results = await resultsRes.json()
             const matches = results
@@ -153,7 +152,7 @@ function DeckPageContent({ params }: PageProps) {
             const tournaments = await tournamentsRes.json()
             for (const tournament of tournaments.slice(0, 5)) {
               if (found.length >= 3) break
-              const resultsRes = await fetch('/api/limitless/tournaments/' + tournament.id + '/results' + divisionParam)
+              const resultsRes = await fetch('/api/limitless/tournaments/' + tournament.id + '/results' + divisionQuery)
               if (!resultsRes.ok) continue
               const results = await resultsRes.json()
               const matches = results
@@ -195,26 +194,24 @@ function DeckPageContent({ params }: PageProps) {
     if (id || deckListId) {
       fetchTopDecks()
     }
-  }, [deckListId, id, playerName, placement, tournamentName])
+  }, [deckListId, id, playerName, placement, tournamentName, divisionParam])
   useEffect(() => {
     async function fetchDay2Averages() {
       if (!id) return
       setAveragesLoading(true)
       try {
-        // Read selected tournament IDs and division from localStorage
+        // Read selected tournament IDs from localStorage
         let selectedTournamentIds: string[] = []
-        let division = ''
         try {
           const stored = localStorage.getItem('pokemon-tcg-meta-selected-tournaments')
           if (stored) {
             const parsed = JSON.parse(stored)
             selectedTournamentIds = parsed.selectedIds || []
           }
-          division = localStorage.getItem('pokemon-tcg-meta-division') || ''
         } catch {
           // ignore
         }
-        const divisionParam = division ? `?division=${division}` : ''
+        const divisionQuery = divisionParam ? `?division=${divisionParam}` : ''
 
         // Use selected tournaments, or fall back to all
         let tournamentIds = selectedTournamentIds
@@ -227,7 +224,7 @@ function DeckPageContent({ params }: PageProps) {
 
         const allDeckLists: DeckListType[] = []
         for (const tournamentId of tournamentIds) {
-          const resultsRes = await fetch('/api/limitless/tournaments/' + tournamentId + '/results' + divisionParam)
+          const resultsRes = await fetch('/api/limitless/tournaments/' + tournamentId + '/results' + divisionQuery)
           if (!resultsRes.ok) continue
           const results = await resultsRes.json()
           const day2Results = results.filter((r: { deckId: string; placement: number; deckListId?: string }) =>
@@ -256,7 +253,7 @@ function DeckPageContent({ params }: PageProps) {
       }
     }
     fetchDay2Averages()
-  }, [id])
+  }, [id, divisionParam])
 
   function calculateAverages(deckLists: DeckListType[]): AveragesByCategory {
     const total = deckLists.length
