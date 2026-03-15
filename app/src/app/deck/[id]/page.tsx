@@ -31,8 +31,23 @@ function DeckPageContent({ params }: PageProps) {
   const placement = searchParams.get('placement')
   const tournamentName = searchParams.get('tournament')
   const fromTab = searchParams.get('from')
-  const divisionParam = searchParams.get('division') || ''
-  
+  const divisionFromUrl = searchParams.get('division')
+  const [divisionParam, setDivisionParam] = useState(divisionFromUrl || '')
+
+  // If no division in URL, fall back to localStorage
+  useEffect(() => {
+    if (!divisionFromUrl) {
+      try {
+        const saved = localStorage.getItem('pokemon-tcg-meta-division')
+        if (saved === 'JR' || saved === 'SR' || saved === '') {
+          setDivisionParam(saved)
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [divisionFromUrl])
+
   const [currentSet, setCurrentSet] = useState(FALLBACK_SET)
 
   useEffect(() => {
