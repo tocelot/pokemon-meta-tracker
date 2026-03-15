@@ -98,7 +98,7 @@ function HomePageContent() {
 
   const [results, setResults] = useState<TournamentResult[]>([])
   const [resultsLoading, setResultsLoading] = useState(false)
-  const [division, setDivision] = useState<'' | 'JR' | 'SR'>('')
+  const [division, setDivision] = useState<'' | 'JR' | 'SR'>('JR')
   const [customCreators, setCustomCreators] = useState<CustomCreator[]>([])
   const [newHandle, setNewHandle] = useState('')
   const [activeTab, setActiveTab] = useState(tabParam || 'local')

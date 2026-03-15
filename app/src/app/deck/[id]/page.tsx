@@ -49,8 +49,16 @@ function DeckPageContent({ params }: PageProps) {
       .catch(() => {})
   }, [])
 
+  interface DeckEntry {
+    deckList: DeckListType
+    playerName: string
+    placement: number
+    deckListId: string
+    tournamentName: string
+  }
+
   const [id, setId] = useState<string>('')
-  const [deckList, setDeckList] = useState<DeckListType | null>(null)
+  const [topDecks, setTopDecks] = useState<DeckEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [averages, setAverages] = useState<AveragesByCategory | null>(null)
@@ -62,44 +70,70 @@ function DeckPageContent({ params }: PageProps) {
   }, [params])
 
   useEffect(() => {
-    async function fetchDeckList() {
+    async function fetchTopDecks() {
       setLoading(true)
       setError(null)
 
       try {
+        const found: DeckEntry[] = []
+
+        // If a specific deck list ID was provided, fetch it first
         if (deckListId) {
           const response = await fetch('/api/limitless/decklist/' + deckListId)
-          if (!response.ok) throw new Error('Failed to fetch deck list')
-          const data = await response.json()
-          if (data.error) {
-            setError(data.error)
-          } else {
-            setDeckList(data)
+          if (response.ok) {
+            const data = await response.json()
+            if (!data.error && (data.pokemon?.length > 0 || data.trainers?.length > 0 || data.energy?.length > 0)) {
+              found.push({
+                deckList: data,
+                playerName: playerName || '',
+                placement: parseInt(placement || '0'),
+                deckListId,
+                tournamentName: tournamentName || '',
+              })
+            }
           }
-        } else if (id) {
+        }
+
+        // Search tournaments for more deck lists of this archetype
+        if (id && found.length < 3) {
           const tournamentsRes = await fetch('/api/limitless/tournaments')
           if (tournamentsRes.ok) {
             const tournaments = await tournamentsRes.json()
             for (const tournament of tournaments.slice(0, 5)) {
+              if (found.length >= 3) break
               const resultsRes = await fetch('/api/limitless/tournaments/' + tournament.id + '/results')
               if (!resultsRes.ok) continue
               const results = await resultsRes.json()
-              const match = results.find((r: { deckId: string; deckListId?: string }) =>
-                r.deckId === id && r.deckListId
-              )
-              if (match?.deckListId) {
+              const matches = results
+                .filter((r: { deckId: string; deckListId?: string }) => r.deckId === id && r.deckListId)
+                .sort((a: { placement: number }, b: { placement: number }) => a.placement - b.placement)
+
+              for (const match of matches) {
+                if (found.length >= 3) break
+                // Skip if we already have this deck list
+                if (found.some(f => f.deckListId === match.deckListId)) continue
+
                 const deckRes = await fetch('/api/limitless/decklist/' + match.deckListId)
-                if (deckRes.ok) {
-                  const deckData = await deckRes.json()
-                  if (deckData.pokemon?.length > 0 || deckData.trainers?.length > 0 || deckData.energy?.length > 0) {
-                    setDeckList(deckData)
-                    break
-                  }
+                if (!deckRes.ok) continue
+                const deckData = await deckRes.json()
+                if (deckData.pokemon?.length > 0 || deckData.trainers?.length > 0 || deckData.energy?.length > 0) {
+                  found.push({
+                    deckList: deckData,
+                    playerName: match.playerName || '',
+                    placement: match.placement,
+                    deckListId: match.deckListId,
+                    tournamentName: tournament.name || '',
+                  })
                 }
               }
             }
           }
         }
+
+        if (found.length === 0 && deckListId) {
+          setError('Failed to fetch deck list')
+        }
+        setTopDecks(found)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error')
       } finally {
@@ -108,9 +142,9 @@ function DeckPageContent({ params }: PageProps) {
     }
 
     if (id || deckListId) {
-      fetchDeckList()
+      fetchTopDecks()
     }
-  }, [deckListId, id])
+  }, [deckListId, id, playerName, placement, tournamentName])
   useEffect(() => {
     async function fetchDay2Averages() {
       if (!id) return
@@ -226,11 +260,6 @@ function DeckPageContent({ params }: PageProps) {
     tier: undefined,
   }
 
-  const emptyDeckList: DeckListType = {
-    pokemon: [],
-    trainers: [],
-    energy: [],
-  }
 
   return (
     <div className="min-h-screen bg-poke-darker">
@@ -288,7 +317,7 @@ function DeckPageContent({ params }: PageProps) {
         )}
 
         <h2 className="text-2xl font-bold text-white mb-4">
-          Top Placing Deck for this Archetype
+          Top Placing Decks for this Archetype
         </h2>
 
         {loading ? (
@@ -311,11 +340,47 @@ function DeckPageContent({ params }: PageProps) {
           <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-4 text-red-400">
             {error}
           </div>
+        ) : topDecks.length > 0 ? (
+          <div className="space-y-8">
+            {topDecks.map((entry, idx) => {
+              const ordinal = entry.placement === 1 ? '1st' : entry.placement === 2 ? '2nd' : entry.placement === 3 ? '3rd' : entry.placement + 'th'
+              return (
+                <div key={entry.deckListId || idx}>
+                  <div className="mb-3 p-3 bg-poke-dark border border-gray-800 rounded-lg">
+                    <p className="text-gray-400 text-sm">
+                      {entry.playerName && (
+                        <span className="text-white font-medium">{entry.playerName}</span>
+                      )}
+                      {entry.placement > 0 && (
+                        <>
+                          {entry.playerName ? ' - ' : ''}
+                          <span className="text-poke-yellow">{ordinal} place</span>
+                        </>
+                      )}
+                      {entry.tournamentName && (
+                        <span className="text-gray-500"> at {entry.tournamentName}</span>
+                      )}
+                      {entry.deckListId && (
+                        <>
+                          {' · '}
+                          <a
+                            href={'https://limitlesstcg.com/decks/list/' + entry.deckListId}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-poke-blue hover:underline"
+                          >
+                            View on Limitless
+                          </a>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <DeckList deckList={entry.deckList} />
+                </div>
+              )
+            })}
+          </div>
         ) : (
-          <DeckList deckList={deckList || emptyDeckList} />
-        )}
-        
-        {!deckList && !loading && !error && (
           <div className="mt-6 p-4 bg-poke-dark border border-gray-800 rounded-lg">
             <p className="text-gray-400 text-sm">
               No tournament deck list found for this archetype. Check{' '}
@@ -328,35 +393,6 @@ function DeckPageContent({ params }: PageProps) {
                 Limitless TCG
               </a>
               {' '}for more deck lists.
-            </p>
-          </div>
-        )}
-        
-        {deckListId && deckList && (
-          <div className="mt-6 p-4 bg-poke-dark border border-gray-800 rounded-lg">
-            <p className="text-gray-400 text-sm">
-              {playerName && placement && (
-                <>
-                  <span className="text-white font-medium">{playerName}</span>
-                  {' - '}
-                  <span className="text-poke-yellow">
-                    {placement === '1' ? '1st' : placement === '2' ? '2nd' : placement === '3' ? '3rd' : placement + 'th'} place
-                  </span>
-                  {tournamentName && (
-                    <span className="text-gray-500"> at {tournamentName}</span>
-                  )}
-                  {' · '}
-                </>
-              )}
-              Deck list sourced from{' '}
-              <a
-                href={'https://limitlesstcg.com/decks/list/' + deckListId}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-poke-blue hover:underline"
-              >
-                Limitless TCG
-              </a>
             </p>
           </div>
         )}
