@@ -50,6 +50,18 @@ interface GroupedResult extends TournamentResult {
   placements: Placement[]
 }
 
+function parseTimeToMinutes(time: string): number {
+  if (!time) return 9999
+  const match = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i)
+  if (!match) return 9999
+  let hours = parseInt(match[1])
+  const minutes = parseInt(match[2])
+  const period = match[3]?.toUpperCase()
+  if (period === 'PM' && hours < 12) hours += 12
+  if (period === 'AM' && hours === 12) hours = 0
+  return hours * 60 + minutes
+}
+
 function HomePageContent() {
   const searchParams = useSearchParams()
   const tabParam = searchParams.get('tab')
@@ -547,16 +559,17 @@ function HomePageContent() {
                     return true
                   })
                   .sort((a, b) => {
-                    // When a date is selected, sort Cups before Challenges, then by distance
-                    if (selectedDate) {
-                      // League Cups come first
-                      if (a.type !== b.type) {
-                        return a.type === 'League Cup' ? -1 : 1
-                      }
-                      // Then sort by distance
-                      if (a.distance !== undefined && b.distance !== undefined) {
-                        return a.distance - b.distance
-                      }
+                    // Sort by date first
+                    if (a.date !== b.date) return a.date < b.date ? -1 : 1
+                    // Cups before Challenges
+                    if (a.type !== b.type) return a.type === 'League Cup' ? -1 : 1
+                    // Then chronologically by time
+                    const timeA = parseTimeToMinutes(a.time)
+                    const timeB = parseTimeToMinutes(b.time)
+                    if (timeA !== timeB) return timeA - timeB
+                    // Then by distance
+                    if (a.distance !== undefined && b.distance !== undefined) {
+                      return a.distance - b.distance
                     }
                     return 0
                   })

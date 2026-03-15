@@ -41,14 +41,32 @@ export function EventCalendar({ events, selectedDate, onSelectDate, onDateRangeC
   // Check if we're viewing the current month
   const isCurrentMonthView = currentMonth === today.getMonth() && currentYear === today.getFullYear()
 
-  // Group events by date
+  // Group events by date, sorted: Cups first, then by time
   const eventsByDate = useMemo(() => {
+    const parseTime = (time: string): number => {
+      if (!time) return 9999
+      const match = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i)
+      if (!match) return 9999
+      let hours = parseInt(match[1])
+      const minutes = parseInt(match[2])
+      const period = match[3]?.toUpperCase()
+      if (period === 'PM' && hours < 12) hours += 12
+      if (period === 'AM' && hours === 12) hours = 0
+      return hours * 60 + minutes
+    }
+
     const grouped: Record<string, CalendarEvent[]> = {}
     for (const event of events) {
       if (!grouped[event.date]) {
         grouped[event.date] = []
       }
       grouped[event.date].push(event)
+    }
+    for (const date in grouped) {
+      grouped[date].sort((a, b) => {
+        if (a.type !== b.type) return a.type === 'League Cup' ? -1 : 1
+        return parseTime(a.time) - parseTime(b.time)
+      })
     }
     return grouped
   }, [events])
