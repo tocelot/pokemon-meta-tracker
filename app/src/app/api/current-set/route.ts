@@ -15,8 +15,8 @@ interface TCGSet {
 }
 
 // The Pokemon TCG API release date is the product release, but sets
-// become tournament-legal ~5 weeks later. This offset approximates that.
-const LEGALITY_OFFSET_DAYS = 35
+// become tournament-legal ~2 weeks later. This offset approximates that.
+const LEGALITY_OFFSET_DAYS = 14
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr.replace(/\//g, '-'))
