@@ -99,6 +99,7 @@ async function handleDivisionResults(id: string, division: string) {
     }
 
     const merged: ResultEntry[] = labsResults.map(labsEntry => {
+      if (labsEntry.deckListId) return labsEntry
       const mainEntry = mainByPlayer.get(labsEntry.playerName.toLowerCase())
       if (mainEntry?.deckListId) {
         return { ...labsEntry, deckListId: mainEntry.deckListId }
@@ -156,7 +157,7 @@ function parseLabsResults(html: string, tournamentId: string): ResultEntry[] {
     tournament: { id: tournamentId },
     placement: p.placement,
     playerName: p.name,
-    deckListId: null,
+    deckListId: p.decklist ? String(p.decklist) : null,
     deckList: { pokemon: [] as never[], trainers: [] as never[], energy: [] as never[] },
   }))
 }
