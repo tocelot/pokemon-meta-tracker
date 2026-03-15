@@ -38,14 +38,13 @@ interface LocalEvent {
   distance?: number
 }
 
-const META_DATA = {
-  lastUpdated: new Date().toISOString(),
-  currentSet: {
-    name: 'Ascended Heroes',
-    releaseDate: '2026-03-06',
-    code: 'ASH',
-  },
+const FALLBACK_SET = {
+  name: 'Ascended Heroes',
+  releaseDate: '2026-03-06',
+  code: 'me2pt5',
 }
+
+const LAST_UPDATED = new Date().toISOString()
 
 interface GroupedResult extends TournamentResult {
   placements: Placement[]
@@ -54,6 +53,24 @@ interface GroupedResult extends TournamentResult {
 function HomePageContent() {
   const searchParams = useSearchParams()
   const tabParam = searchParams.get('tab')
+
+  const [currentSet, setCurrentSet] = useState(FALLBACK_SET)
+
+  // Fetch current set dynamically
+  useEffect(() => {
+    fetch('/api/current-set')
+      .then(res => res.json())
+      .then(data => {
+        if (data.name) {
+          setCurrentSet({
+            name: data.name,
+            releaseDate: data.legalDate || data.releaseDate,
+            code: data.code,
+          })
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const {
     tournaments,
@@ -65,7 +82,7 @@ function HomePageContent() {
     clearAll,
     selectPostSet,
     refreshTournaments,
-  } = useTournamentSelection(META_DATA.currentSet.releaseDate)
+  } = useTournamentSelection(currentSet.releaseDate)
 
   const [results, setResults] = useState<TournamentResult[]>([])
   const [resultsLoading, setResultsLoading] = useState(false)
@@ -273,8 +290,8 @@ function HomePageContent() {
   return (
     <div className="min-h-screen bg-poke-darker">
       <Header 
-        currentSet={META_DATA.currentSet}
-        lastUpdated={META_DATA.lastUpdated}
+        currentSet={currentSet}
+        lastUpdated={LAST_UPDATED}
       />
       
       <main className="container mx-auto px-4 py-8">
@@ -295,8 +312,8 @@ function HomePageContent() {
             <TournamentSelector
               tournaments={tournaments}
               selectedIds={selectedIds}
-              currentSetName={META_DATA.currentSet.name}
-              currentSetReleaseDate={META_DATA.currentSet.releaseDate}
+              currentSetName={currentSet.name}
+              currentSetReleaseDate={currentSet.releaseDate}
               isLoading={tournamentsLoading}
               lastFetched={lastFetched}
               onToggle={toggleTournament}

@@ -8,14 +8,13 @@ import { DeckList } from '@/components/DeckList'
 import { DeckList as DeckListType, CardEntry } from '@/lib/types'
 import creatorsData from '@/data/creators.json'
 
-const META_DATA = {
-  lastUpdated: new Date().toISOString(),
-  currentSet: {
-    name: 'Ascended Heroes',
-    releaseDate: '2026-03-06',
-    code: 'ASH',
-  },
+const FALLBACK_SET = {
+  name: 'Ascended Heroes',
+  releaseDate: '2026-03-06',
+  code: 'me2pt5',
 }
+
+const LAST_UPDATED = new Date().toISOString()
 
 interface AverageCard { name: string; setCode: string; setNumber: string; avgCount: number; minCount: number; maxCount: number; playRate: number }
 interface AveragesByCategory { pokemon: AverageCard[]; trainers: AverageCard[]; energy: AverageCard[] }
@@ -33,6 +32,23 @@ function DeckPageContent({ params }: PageProps) {
   const tournamentName = searchParams.get('tournament')
   const fromTab = searchParams.get('from')
   
+  const [currentSet, setCurrentSet] = useState(FALLBACK_SET)
+
+  useEffect(() => {
+    fetch('/api/current-set')
+      .then(res => res.json())
+      .then(data => {
+        if (data.name) {
+          setCurrentSet({
+            name: data.name,
+            releaseDate: data.legalDate || data.releaseDate,
+            code: data.code,
+          })
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   const [id, setId] = useState<string>('')
   const [deckList, setDeckList] = useState<DeckListType | null>(null)
   const [loading, setLoading] = useState(false)
@@ -219,8 +235,8 @@ function DeckPageContent({ params }: PageProps) {
   return (
     <div className="min-h-screen bg-poke-darker">
       <Header 
-        currentSet={META_DATA.currentSet}
-        lastUpdated={META_DATA.lastUpdated}
+        currentSet={currentSet}
+        lastUpdated={LAST_UPDATED}
       />
       
       <main className="container mx-auto px-4 py-8">
