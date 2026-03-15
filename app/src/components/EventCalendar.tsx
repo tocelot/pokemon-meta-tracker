@@ -36,6 +36,8 @@ export function EventCalendar({ events, selectedDate, onSelectDate, onDateRangeC
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
   const [currentYear, setCurrentYear] = useState(today.getFullYear())
 
+  const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
   // Check if we're viewing the current month
   const isCurrentMonthView = currentMonth === today.getMonth() && currentYear === today.getFullYear()
 
@@ -110,14 +112,14 @@ export function EventCalendar({ events, selectedDate, onSelectDate, onDateRangeC
     return days
   }, [currentMonth, currentYear, isCurrentMonthView, today])
 
-  // Notify parent of visible date range
+  // Notify parent of visible date range (use today as start when viewing current month)
   useEffect(() => {
     if (calendarDays.length > 0 && onDateRangeChange) {
-      const startDate = calendarDays[0].dateString
+      const startDate = isCurrentMonthView ? todayString : calendarDays[0].dateString
       const endDate = calendarDays[calendarDays.length - 1].dateString
       onDateRangeChange(startDate, endDate)
     }
-  }, [calendarDays, onDateRangeChange])
+  }, [calendarDays, onDateRangeChange, isCurrentMonthView, todayString])
 
   const goToPreviousMonth = () => {
     if (currentMonth === 0) {
@@ -194,7 +196,8 @@ export function EventCalendar({ events, selectedDate, onSelectDate, onDateRangeC
       {/* Calendar grid */}
       <div className="grid grid-cols-7 gap-1">
         {calendarDays.map((day, index) => {
-          const dayEvents = eventsByDate[day.dateString] || []
+          const isPast = isCurrentMonthView && day.dateString < todayString
+          const dayEvents = isPast ? [] : (eventsByDate[day.dateString] || [])
           const hasEvents = dayEvents.length > 0
           const isSelected = selectedDate === day.dateString
           const todayHighlight = isToday(day.dateString)
