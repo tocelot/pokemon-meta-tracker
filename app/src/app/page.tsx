@@ -86,6 +86,7 @@ function HomePageContent() {
 
   const [results, setResults] = useState<TournamentResult[]>([])
   const [resultsLoading, setResultsLoading] = useState(false)
+  const [division, setDivision] = useState<'' | 'JR' | 'SR'>('')
   const [customCreators, setCustomCreators] = useState<CustomCreator[]>([])
   const [newHandle, setNewHandle] = useState('')
   const [activeTab, setActiveTab] = useState(tabParam || 'local')
@@ -220,7 +221,8 @@ function HomePageContent() {
         const allResults: TournamentResult[] = []
         
         for (const tournamentId of selectedIds) {
-          const response = await fetch('/api/limitless/tournaments/' + tournamentId + '/results')
+          const divisionParam = division ? `?division=${division}` : ''
+          const response = await fetch('/api/limitless/tournaments/' + tournamentId + '/results' + divisionParam)
           if (response.ok) {
             const tournamentResults = await response.json()
             const tournament = tournaments.find(t => t.id === tournamentId)
@@ -254,7 +256,7 @@ function HomePageContent() {
     }
 
     fetchResults()
-  }, [selectedIds, tournaments])
+  }, [selectedIds, tournaments, division])
 
   const groupedResults = results.reduce<GroupedResult[]>((acc, result) => {
     const existing = acc.find(r => r.deckId === result.deckId)
@@ -324,11 +326,28 @@ function HomePageContent() {
             />
 
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-white mb-2">
-                Tournament Results
-              </h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xl font-semibold text-white">
+                  Tournament Results
+                </h2>
+                <div className="flex bg-poke-dark border border-gray-700 rounded-lg overflow-hidden">
+                  {([['', 'Masters'], ['JR', 'Juniors'], ['SR', 'Seniors']] as const).map(([val, label]) => (
+                    <button
+                      key={val}
+                      onClick={() => setDivision(val)}
+                      className={`px-3 py-1.5 text-sm transition-colors ${
+                        division === val
+                          ? 'bg-poke-blue text-white'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <p className="text-gray-400 text-sm">
-                Showing results from {selectedIds.size} selected tournament{selectedIds.size !== 1 ? 's' : ''}
+                Showing {division === 'JR' ? 'Juniors' : division === 'SR' ? 'Seniors' : 'Masters'} results from {selectedIds.size} selected tournament{selectedIds.size !== 1 ? 's' : ''}
               </p>
             </div>
 

@@ -9,22 +9,26 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    
-    const response = await fetch(
-      'https://limitlesstcg.com/tournaments/' + id,
-      {
-        headers: {
-          'User-Agent': 'Pokemon-TCG-Meta-Tracker/1.0',
-        },
-      }
-    )
+    const { searchParams } = new URL(request.url)
+    const division = searchParams.get('division') || '' // 'JR', 'SR', or '' (Masters)
+
+    const url = division
+      ? `https://limitlesstcg.com/tournaments/${id}/${division}`
+      : `https://limitlesstcg.com/tournaments/${id}`
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Pokemon-TCG-Meta-Tracker/1.0',
+      },
+    })
     
     if (!response.ok) {
       throw new Error('Limitless returned ' + response.status)
     }
     
     const html = await response.text()
-    const results = parseResults(html, id)
+    const maxRank = division === 'JR' || division === 'SR' ? 64 : 32
+    const results = parseResults(html, id, maxRank)
     
     if (results.length === 0) {
       return NextResponse.json([])
@@ -37,7 +41,7 @@ export async function GET(
   }
 }
 
-function parseResults(html: string, tournamentId: string) {
+function parseResults(html: string, tournamentId: string, maxRank: number = 32) {
   const $ = cheerio.load(html)
   const results: Array<{
     deckId: string
@@ -60,7 +64,7 @@ function parseResults(html: string, tournamentId: string) {
     const deckListLink = $row.find('a[href*="/decks/list/"]').attr('href') || ''
     const deckListId = deckListLink.split('/').pop() || null
     
-    if (rank > 0 && rank <= 32 && playerName) {
+    if (rank > 0 && rank <= maxRank && playerName) {
       results.push({
         deckId: generateDeckId(deckName),
         archetype: {
