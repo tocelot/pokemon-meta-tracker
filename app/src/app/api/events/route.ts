@@ -114,8 +114,9 @@ export async function POST(request: Request) {
     // Build base request body for pokedata API
     // IMPORTANT: ftcg must be disabled to exclude "nonpremier TCG" events
     // We make separate requests for cups and challenges to avoid the 100 event limit
+    // past: '1' includes today's events that pokedata considers "past" after their start time
     const baseBody = {
-      past: '',
+      past: '1',
       country: country,
       city: '',
       shop: '',
@@ -166,8 +167,10 @@ export async function POST(request: Request) {
       challengesResponse.json(),
     ])
 
-    // Merge the results
-    const data = [...(Array.isArray(cupsData) ? cupsData : []), ...(Array.isArray(challengesData) ? challengesData : [])]
+    // Merge the results and filter out events before today
+    const todayStr = new Date().toISOString().split('T')[0]
+    const allData = [...(Array.isArray(cupsData) ? cupsData : []), ...(Array.isArray(challengesData) ? challengesData : [])]
+    const data = allData.filter(e => !e.date || e.date >= todayStr)
 
     // API returns a direct array of event objects
     let events: LocalEvent[] = []
@@ -180,6 +183,7 @@ export async function POST(request: Request) {
       for (const event of scraperData.events) {
         const normalizedDate = parseScraperDate(event.date)
         if (!normalizedDate) continue
+        if (normalizedDate < todayStr) continue
 
         // Skip non-TCG events (GO, VGC)
         if (!isTCGEvent(event.name || '')) continue

@@ -93,7 +93,7 @@ interface PokedataEvent {
 
 async function fetchPokedataEvents(state: string = 'California'): Promise<PokedataEvent[]> {
   const baseBody = {
-    past: '', country: 'US', city: '', shop: '', league: '',
+    past: '1', country: 'US', city: '', shop: '', league: '',
     states: JSON.stringify([state]),
     postcode: '', vcups: '', vchallenges: '', prereleases: '', premier: '',
     go: '', gocup: '', mss: '', ftcg: '', fvg: '', fgo: '',
@@ -117,7 +117,9 @@ async function fetchPokedataEvents(state: string = 'California'): Promise<Pokeda
     const cups = await cupsRes.json() as PokedataEvent[]
     const challenges = await challengesRes.json() as PokedataEvent[]
 
-    return [...cups, ...challenges]
+    // Filter out events before today (past:'1' includes them for today's same-day events)
+    const todayStr = new Date().toISOString().split('T')[0]
+    return [...cups, ...challenges].filter(e => !e.date || e.date >= todayStr)
   } catch (error) {
     console.error('Error fetching from pokedata.ovh:', error)
     return []
@@ -162,11 +164,13 @@ async function buildCombinedData(
   // Combine events
   const combinedEvents: LocalEvent[] = []
   const seenEvents = new Set<string>()
+  const todayStr = new Date().toISOString().split('T')[0]
 
   // Add scraper events first (they include stores not in pokedata)
   scraperEvents.forEach(e => {
     const normalizedDate = parseScraperDate(e.date)
     if (!normalizedDate) return
+    if (normalizedDate < todayStr) return
 
     const eventType = normalizeType(e.type)
     const key = `${normalizedDate}-${normalizeShop(e.shop)}-${eventType}`
