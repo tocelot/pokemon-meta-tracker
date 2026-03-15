@@ -22,15 +22,7 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const division = searchParams.get('division') || '' // 'JR', 'SR', or '' (Masters)
 
-    // For JR/SR, try Labs first for Day 2 data, fall back to main site
-    if (division === 'JR' || division === 'SR') {
-      const labsResults = await fetchLabsResults(id, division)
-      if (labsResults.length > 0) {
-        return NextResponse.json(labsResults)
-      }
-    }
-
-    // Masters or Labs fallback: scrape main tournament page
+    // Scrape main tournament page (has deck list links)
     const url = division
       ? `https://limitlesstcg.com/tournaments/${id}/${division}`
       : `https://limitlesstcg.com/tournaments/${id}`
@@ -45,9 +37,32 @@ export async function GET(
 
     const html = await response.text()
     const maxRank = division ? 64 : 32
-    const results = parseResults(html, id, maxRank)
+    const mainResults = parseResults(html, id, maxRank)
 
-    return NextResponse.json(results)
+    // For JR/SR, also fetch Labs data and merge to get more Day 2 players
+    if (division === 'JR' || division === 'SR') {
+      const labsResults = await fetchLabsResults(id, division)
+      if (labsResults.length > 0) {
+        // Build a map of main site results by player name for deckListId lookup
+        const mainByPlayer = new Map<string, ResultEntry>()
+        for (const r of mainResults) {
+          mainByPlayer.set(r.playerName.toLowerCase(), r)
+        }
+
+        // Merge: start with Labs results (more comprehensive), enrich with main site deckListIds
+        const merged: ResultEntry[] = labsResults.map(labsEntry => {
+          const mainEntry = mainByPlayer.get(labsEntry.playerName.toLowerCase())
+          if (mainEntry && mainEntry.deckListId) {
+            return { ...labsEntry, deckListId: mainEntry.deckListId }
+          }
+          return labsEntry
+        })
+
+        return NextResponse.json(merged)
+      }
+    }
+
+    return NextResponse.json(mainResults)
   } catch (error) {
     console.error('Error fetching tournament results:', error)
     return NextResponse.json([])
