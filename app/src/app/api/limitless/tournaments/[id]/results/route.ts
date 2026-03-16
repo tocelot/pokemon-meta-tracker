@@ -55,21 +55,9 @@ export async function GET(
 }
 
 async function handleDivisionResults(id: string, division: string) {
-  // Fetch division page AND main page in parallel
-  const [divisionResponse, mainResponse] = await Promise.all([
-    fetchWithTimeout(`https://limitlesstcg.com/tournaments/${id}/${division}`).catch(() => null),
-    fetchWithTimeout(`https://limitlesstcg.com/tournaments/${id}`).catch(() => null),
-  ])
+  // Fetch main tournament page to find Labs ID
+  const mainResponse = await fetchWithTimeout(`https://limitlesstcg.com/tournaments/${id}`).catch(() => null)
 
-  // Parse division page results (has deck list IDs)
-  let mainSiteResults: ResultEntry[] = []
-  if (divisionResponse?.ok) {
-    const html = await divisionResponse.text()
-    mainSiteResults = parseResults(html, id, 64)
-  }
-
-  // Extract Labs ID from main page and fetch Labs standings
-  let labsResults: ResultEntry[] = []
   if (mainResponse?.ok) {
     const mainHtml = await mainResponse.text()
     const $main = cheerio.load(mainHtml)
@@ -87,34 +75,29 @@ async function handleDivisionResults(id: string, division: string) {
         const labsResponse = await fetchWithTimeout(labsUrl)
         if (labsResponse.ok) {
           const labsHtml = await labsResponse.text()
-          labsResults = parseLabsResults(labsHtml, id, labsId, division)
+          const labsResults = parseLabsResults(labsHtml, id, labsId, division)
+          if (labsResults.length > 0) {
+            return NextResponse.json(labsResults)
+          }
         }
       } catch {
-        // Labs fetch failed, continue with main site results only
+        // Labs fetch failed, fall through to main site
       }
     }
   }
 
-  // Merge: prefer Labs (comprehensive Day 2 data), enrich with main site deck list IDs
-  if (labsResults.length > 0) {
-    const mainByPlayer = new Map<string, ResultEntry>()
-    for (const r of mainSiteResults) {
-      mainByPlayer.set(r.playerName.toLowerCase(), r)
+  // Fallback: scrape main site division page if Labs unavailable
+  try {
+    const divisionResponse = await fetchWithTimeout(`https://limitlesstcg.com/tournaments/${id}/${division}`)
+    if (divisionResponse.ok) {
+      const html = await divisionResponse.text()
+      return NextResponse.json(parseResults(html, id, 64))
     }
-
-    const merged: ResultEntry[] = labsResults.map(labsEntry => {
-      const mainEntry = mainByPlayer.get(labsEntry.playerName.toLowerCase())
-      if (mainEntry?.deckListId) {
-        return { ...labsEntry, deckListId: mainEntry.deckListId }
-      }
-      return labsEntry
-    })
-
-    return NextResponse.json(merged)
+  } catch {
+    // Division page also failed
   }
 
-  // Fallback to main site results
-  return NextResponse.json(mainSiteResults)
+  return NextResponse.json([])
 }
 
 function parseLabsResults(html: string, tournamentId: string, labsId: string, division: string): ResultEntry[] {
