@@ -149,17 +149,23 @@ function DeckPageContent({ params }: PageProps) {
           const resultsRes = await fetch('/api/limitless/tournaments/' + tournamentId + '/results' + divisionQuery)
           if (!resultsRes.ok) continue
           const results = await resultsRes.json()
-          const day2Results = results.filter((r: { deckId: string; placement: number; deckListId?: string }) =>
-            r.deckId === id && r.placement <= 32 && r.deckListId
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const day2Results = results.filter((r: any) =>
+            r.deckId === id && r.placement <= 32 && (r.deckListId || (r.hasLabsDeckList && r.labsTpId))
           )
-          for (const result of day2Results.slice(0, 10)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const result of day2Results.slice(0, 10) as any[]) {
+            let url: string
             if (result.deckListId) {
-              const deckRes = await fetch('/api/limitless/decklist/' + result.deckListId)
-              if (deckRes.ok) {
-                const deckData = await deckRes.json()
-                if (deckData.pokemon?.length > 0 || deckData.trainers?.length > 0 || deckData.energy?.length > 0) {
-                  allDeckLists.push(deckData)
-                }
+              url = '/api/limitless/decklist/' + result.deckListId
+            } else {
+              url = `/api/limitless/labs-decklist/${result.labsId}/${result.labsDivision}/${result.labsTpId}`
+            }
+            const deckRes = await fetch(url)
+            if (deckRes.ok) {
+              const deckData = await deckRes.json()
+              if (deckData.pokemon?.length > 0 || deckData.trainers?.length > 0 || deckData.energy?.length > 0) {
+                allDeckLists.push(deckData)
               }
             }
           }
