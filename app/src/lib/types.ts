@@ -96,6 +96,10 @@ export interface Placement {
   placement: number
   playerName: string
   deckListId?: string | null
+  labsTpId?: number | null
+  labsId?: string | null
+  labsDivision?: string | null
+  hasLabsDeckList?: boolean
   tournament: {
     id: string
     name: string

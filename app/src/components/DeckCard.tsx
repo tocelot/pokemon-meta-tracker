@@ -9,6 +9,9 @@ interface DeckCardProps {
   tier?: number
   placements?: Placement[]
   deckListId?: string | null
+  labsTpId?: number | null
+  labsId?: string | null
+  labsDivision?: string | null
   creatorName?: string
   videoUrl?: string
   source: 'tournament' | 'creator'
@@ -21,6 +24,9 @@ export function DeckCard({
   tier,
   placements,
   deckListId,
+  labsTpId,
+  labsId,
+  labsDivision,
   creatorName,
   videoUrl,
   source,
@@ -40,7 +46,10 @@ export function DeckCard({
   }
 
   // Build the href with deckListId, player name, placement, and source tab as query params
-  const topPlacement = placements?.find(p => p.deckListId === deckListId)
+  // Prefer the placement with a deckListId; fall back to the best placement with a Labs deck list
+  const topPlacement = deckListId
+    ? placements?.find(p => p.deckListId === deckListId)
+    : placements?.find(p => p.hasLabsDeckList) || placements?.[0]
   const params = new URLSearchParams()
   if (deckListId) {
     params.set('list', deckListId)
@@ -54,6 +63,11 @@ export function DeckCard({
   params.set('from', source)
   if (division) {
     params.set('division', division)
+  }
+  if (!deckListId && labsTpId && labsId && labsDivision) {
+    params.set('labsTpId', labsTpId.toString())
+    params.set('labsId', labsId)
+    params.set('labsDivision', labsDivision)
   }
   const href = '/deck/' + id + '?' + params.toString()
 

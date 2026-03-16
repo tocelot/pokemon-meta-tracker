@@ -31,6 +31,9 @@ function DeckPageContent({ params }: PageProps) {
   const tournamentName = searchParams.get('tournament')
   const fromTab = searchParams.get('from')
   const divisionFromUrl = searchParams.get('division')
+  const labsTpId = searchParams.get('labsTpId')
+  const labsIdParam = searchParams.get('labsId')
+  const labsDivisionParam = searchParams.get('labsDivision')
   const [divisionParam, setDivisionParam] = useState(divisionFromUrl || '')
 
   useEffect(() => {
@@ -65,10 +68,6 @@ function DeckPageContent({ params }: PageProps) {
 
   const [id, setId] = useState<string>('')
   const [deckList, setDeckList] = useState<DeckListType | null>(null)
-  const [foundDeckListId, setFoundDeckListId] = useState<string | null>(null)
-  const [foundPlayerName, setFoundPlayerName] = useState<string | null>(null)
-  const [foundPlacement, setFoundPlacement] = useState<number>(0)
-  const [foundTournament, setFoundTournament] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [averages, setAverages] = useState<AveragesByCategory | null>(null)
@@ -82,87 +81,41 @@ function DeckPageContent({ params }: PageProps) {
     params.then(p => setId(p.id))
   }, [params])
 
-  // Fetch deck list: use URL param if available, otherwise search tournaments
+  // Fetch deck list: use main site deckListId if available, otherwise try Labs
   useEffect(() => {
-    if (deckListId) {
-      // Direct fetch — we have a specific deck list ID from the URL
-      setLoading(true)
-      setError(null)
-      fetch('/api/limitless/decklist/' + deckListId)
-        .then(res => {
-          if (!res.ok) throw new Error('Failed to fetch deck list')
-          return res.json()
-        })
-        .then(data => {
-          if (data.error || (!data.pokemon?.length && !data.trainers?.length && !data.energy?.length)) {
-            throw new Error('No deck list data found')
-          }
-          setDeckList(data)
-        })
-        .catch(err => setError(err instanceof Error ? err.message : 'Unknown error'))
-        .finally(() => setLoading(false))
-      return
-    }
+    if (!deckListId && !labsTpId) return
 
-    // No deck list ID in URL — search tournament results for this archetype
-    if (!id) return
-
-    async function searchForDeckList() {
+    async function fetchDeckList() {
       setLoading(true)
       setError(null)
       try {
-        let selectedTournamentIds: string[] = []
-        try {
-          const stored = localStorage.getItem('pokemon-tcg-meta-selected-tournaments')
-          if (stored) {
-            selectedTournamentIds = JSON.parse(stored).selectedIds || []
-          }
-        } catch {
-          // ignore
-        }
-        const divisionQuery = divisionParam ? `?division=${divisionParam}` : ''
-
-        let tournamentIds = selectedTournamentIds
-        if (tournamentIds.length === 0) {
-          const res = await fetch('/api/limitless/tournaments')
-          if (res.ok) {
-            const tournaments = await res.json()
-            tournamentIds = tournaments.slice(0, 5).map((t: { id: string }) => t.id)
-          }
+        let url: string
+        if (deckListId) {
+          // Fetch from main Limitless site
+          url = '/api/limitless/decklist/' + deckListId
+        } else {
+          // Fetch from Labs using tp_id
+          url = `/api/limitless/labs-decklist/${labsIdParam}/${labsDivisionParam}/${labsTpId}`
         }
 
-        for (const tournamentId of tournamentIds) {
-          const resultsRes = await fetch('/api/limitless/tournaments/' + tournamentId + '/results' + divisionQuery)
-          if (!resultsRes.ok) continue
-          const results = await resultsRes.json()
-          const match = results
-            .filter((r: { deckId: string; deckListId?: string }) => r.deckId === id && r.deckListId)
-            .sort((a: { placement: number }, b: { placement: number }) => a.placement - b.placement)[0]
-
-          if (match) {
-            const deckRes = await fetch('/api/limitless/decklist/' + match.deckListId)
-            if (deckRes.ok) {
-              const deckData = await deckRes.json()
-              if (deckData.pokemon?.length > 0 || deckData.trainers?.length > 0 || deckData.energy?.length > 0) {
-                setDeckList(deckData)
-                setFoundDeckListId(match.deckListId)
-                setFoundPlayerName(match.playerName)
-                setFoundPlacement(match.placement)
-                setFoundTournament(results[0]?.tournament?.name || '')
-                return
-              }
-            }
-          }
+        const response = await fetch(url)
+        if (!response.ok) {
+          throw new Error('Failed to fetch deck list')
         }
+        const data = await response.json()
+        if (data.error || (!data.pokemon?.length && !data.trainers?.length && !data.energy?.length)) {
+          throw new Error('No deck list data found')
+        }
+        setDeckList(data)
       } catch (err) {
-        console.error('Error searching for deck list:', err)
+        setError(err instanceof Error ? err.message : 'Unknown error')
       } finally {
         setLoading(false)
       }
     }
 
-    searchForDeckList()
-  }, [deckListId, id, divisionParam])
+    fetchDeckList()
+  }, [deckListId, labsTpId, labsIdParam, labsDivisionParam])
 
   // Fetch Day 2 averages for this archetype
   useEffect(() => {
@@ -393,12 +346,8 @@ function DeckPageContent({ params }: PageProps) {
     tier: undefined,
   }
 
-  // Use URL params if available, otherwise use found values from search
-  const displayDeckListId = deckListId || foundDeckListId
-  const displayPlayerName = playerName || foundPlayerName
-  const displayPlacement = parseInt(placement || '0') || foundPlacement
-  const displayTournament = tournamentName || foundTournament
-  const ordinal = displayPlacement === 1 ? '1st' : displayPlacement === 2 ? '2nd' : displayPlacement === 3 ? '3rd' : displayPlacement + 'th'
+  const placementNum = parseInt(placement || '0')
+  const ordinal = placementNum === 1 ? '1st' : placementNum === 2 ? '2nd' : placementNum === 3 ? '3rd' : placementNum + 'th'
 
   return (
     <div className="min-h-screen bg-poke-darker">
@@ -481,26 +430,26 @@ function DeckPageContent({ params }: PageProps) {
           </div>
         ) : deckList ? (
           <div>
-            {(displayPlayerName || displayPlacement > 0 || displayTournament) && (
+            {(playerName || placementNum > 0 || tournamentName) && (
               <div className="mb-3 p-3 bg-poke-dark border border-gray-800 rounded-lg">
                 <p className="text-gray-400 text-sm">
-                  {displayPlayerName && (
-                    <span className="text-white font-medium">{displayPlayerName}</span>
+                  {playerName && (
+                    <span className="text-white font-medium">{playerName}</span>
                   )}
-                  {displayPlacement > 0 && (
+                  {placementNum > 0 && (
                     <>
-                      {displayPlayerName ? ' - ' : ''}
+                      {playerName ? ' - ' : ''}
                       <span className="text-poke-yellow">{ordinal} place</span>
                     </>
                   )}
-                  {displayTournament && (
-                    <span className="text-gray-500"> at {displayTournament}</span>
+                  {tournamentName && (
+                    <span className="text-gray-500"> at {tournamentName}</span>
                   )}
-                  {displayDeckListId && (
+                  {deckListId ? (
                     <>
                       {' · '}
                       <a
-                        href={'https://limitlesstcg.com/decks/list/' + displayDeckListId}
+                        href={'https://limitlesstcg.com/decks/list/' + deckListId}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-poke-blue hover:underline"
@@ -508,7 +457,19 @@ function DeckPageContent({ params }: PageProps) {
                         View on Limitless
                       </a>
                     </>
-                  )}
+                  ) : labsTpId && labsIdParam && labsDivisionParam ? (
+                    <>
+                      {' · '}
+                      <a
+                        href={`https://labs.limitlesstcg.com/${labsIdParam}/${labsDivisionParam}/player/${labsTpId}/decklist`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-poke-blue hover:underline"
+                      >
+                        View on Limitless Labs
+                      </a>
+                    </>
+                  ) : null}
                 </p>
               </div>
             )}

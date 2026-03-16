@@ -282,31 +282,29 @@ function HomePageContent() {
   }, [selectedIds, tournaments, division])
 
   const groupedResults = results.reduce<GroupedResult[]>((acc, result) => {
-    const existing = acc.find(r => r.deckId === result.deckId)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = result as any
+    const placementEntry = {
+      placement: result.placement,
+      playerName: result.playerName,
+      deckListId: result.deckListId,
+      labsTpId: r.labsTpId || null,
+      labsId: r.labsId || null,
+      labsDivision: r.labsDivision || null,
+      hasLabsDeckList: r.hasLabsDeckList || false,
+      tournament: {
+        id: result.tournament.id,
+        name: result.tournament.name,
+        date: result.tournament.date,
+      },
+    }
+    const existing = acc.find(g => g.deckId === result.deckId)
     if (existing) {
-      existing.placements.push({
-        placement: result.placement,
-        playerName: result.playerName,
-        deckListId: result.deckListId,
-        tournament: {
-          id: result.tournament.id,
-          name: result.tournament.name,
-          date: result.tournament.date,
-        },
-      })
+      existing.placements.push(placementEntry)
     } else {
       acc.push({
         ...result,
-        placements: [{
-          placement: result.placement,
-          playerName: result.playerName,
-          deckListId: result.deckListId,
-          tournament: {
-            id: result.tournament.id,
-            name: result.tournament.name,
-            date: result.tournament.date,
-          },
-        }],
+        placements: [placementEntry],
       })
     }
     return acc
@@ -394,6 +392,9 @@ function HomePageContent() {
                     tier={result.archetype.tier}
                     placements={result.placements}
                     deckListId={result.placements.find(p => p.deckListId)?.deckListId}
+                    labsTpId={(result.placements.find(p => p.hasLabsDeckList) || result.placements[0])?.labsTpId}
+                    labsId={(result.placements.find(p => p.hasLabsDeckList) || result.placements[0])?.labsId}
+                    labsDivision={(result.placements.find(p => p.hasLabsDeckList) || result.placements[0])?.labsDivision}
                     source="tournament"
                     division={division}
                   />

@@ -10,6 +10,10 @@ interface ResultEntry {
   placement: number
   playerName: string
   deckListId: string | null
+  labsTpId: number | null
+  labsId: string | null
+  labsDivision: string | null
+  hasLabsDeckList: boolean
   deckList: { pokemon: never[]; trainers: never[]; energy: never[] }
 }
 
@@ -83,7 +87,7 @@ async function handleDivisionResults(id: string, division: string) {
         const labsResponse = await fetchWithTimeout(labsUrl)
         if (labsResponse.ok) {
           const labsHtml = await labsResponse.text()
-          labsResults = parseLabsResults(labsHtml, id)
+          labsResults = parseLabsResults(labsHtml, id, labsId, division)
         }
       } catch {
         // Labs fetch failed, continue with main site results only
@@ -113,11 +117,12 @@ async function handleDivisionResults(id: string, division: string) {
   return NextResponse.json(mainSiteResults)
 }
 
-function parseLabsResults(html: string, tournamentId: string): ResultEntry[] {
+function parseLabsResults(html: string, tournamentId: string, labsId: string, division: string): ResultEntry[] {
   const $ = cheerio.load(html)
 
   let players: Array<{
     name: string
+    tp_id: number
     placement: number
     day2: number
     deck_name: string
@@ -157,6 +162,10 @@ function parseLabsResults(html: string, tournamentId: string): ResultEntry[] {
     placement: p.placement,
     playerName: p.name,
     deckListId: null,
+    labsTpId: p.tp_id || null,
+    labsId,
+    labsDivision: division,
+    hasLabsDeckList: p.decklist === 1,
     deckList: { pokemon: [] as never[], trainers: [] as never[], energy: [] as never[] },
   }))
 }
@@ -189,6 +198,10 @@ function parseResults(html: string, tournamentId: string, maxRank: number = 32):
         placement: rank,
         playerName,
         deckListId,
+        labsTpId: null,
+        labsId: null,
+        labsDivision: null,
+        hasLabsDeckList: false,
         deckList: { pokemon: [], trainers: [], energy: [] },
       })
     }
