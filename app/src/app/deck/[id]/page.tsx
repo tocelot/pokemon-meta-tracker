@@ -23,7 +23,6 @@ interface PageProps {
   params: Promise<{ id: string }>
 }
 
-// MARKER
 function DeckPageContent({ params }: PageProps) {
   const searchParams = useSearchParams()
   const deckListId = searchParams.get('list')
@@ -34,7 +33,6 @@ function DeckPageContent({ params }: PageProps) {
   const divisionFromUrl = searchParams.get('division')
   const [divisionParam, setDivisionParam] = useState(divisionFromUrl || '')
 
-  // If no division in URL, fall back to localStorage
   useEffect(() => {
     if (!divisionFromUrl) {
       try {
@@ -65,16 +63,8 @@ function DeckPageContent({ params }: PageProps) {
       .catch(() => {})
   }, [])
 
-  interface DeckEntry {
-    deckList: DeckListType
-    playerName: string
-    placement: number
-    deckListId: string
-    tournamentName: string
-  }
-
   const [id, setId] = useState<string>('')
-  const [topDecks, setTopDecks] = useState<DeckEntry[]>([])
+  const [deckList, setDeckList] = useState<DeckListType | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [averages, setAverages] = useState<AveragesByCategory | null>(null)
@@ -88,117 +78,23 @@ function DeckPageContent({ params }: PageProps) {
     params.then(p => setId(p.id))
   }, [params])
 
+  // Fetch the single deck list from URL param
   useEffect(() => {
-    async function fetchTopDecks() {
+    if (!deckListId) return
+
+    async function fetchDeckList() {
       setLoading(true)
       setError(null)
-
       try {
-        const found: DeckEntry[] = []
-
-        // Read selected tournament IDs from localStorage
-        let selectedTournamentIds: string[] = []
-        try {
-          const stored = localStorage.getItem('pokemon-tcg-meta-selected-tournaments')
-          if (stored) {
-            const parsed = JSON.parse(stored)
-            selectedTournamentIds = parsed.selectedIds || []
-          }
-        } catch {
-          // ignore parse errors
+        const response = await fetch('/api/limitless/decklist/' + deckListId)
+        if (!response.ok) {
+          throw new Error('Failed to fetch deck list')
         }
-        const divisionQuery = divisionParam ? `?division=${divisionParam}` : ''
-
-        // If a specific deck list ID was provided, fetch it first
-        if (deckListId) {
-          const response = await fetch('/api/limitless/decklist/' + deckListId)
-          if (response.ok) {
-            const data = await response.json()
-            if (!data.error && (data.pokemon?.length > 0 || data.trainers?.length > 0 || data.energy?.length > 0)) {
-              found.push({
-                deckList: data,
-                playerName: playerName || '',
-                placement: parseInt(placement || '0'),
-                deckListId,
-                tournamentName: tournamentName || '',
-              })
-            }
-          }
+        const data = await response.json()
+        if (data.error || (!data.pokemon?.length && !data.trainers?.length && !data.energy?.length)) {
+          throw new Error('No deck list data found')
         }
-
-        // Search selected tournaments for more deck lists of this archetype
-        if (id && found.length < 3 && selectedTournamentIds.length > 0) {
-          for (const tournamentId of selectedTournamentIds) {
-            if (found.length >= 3) break
-            const resultsRes = await fetch('/api/limitless/tournaments/' + tournamentId + '/results' + divisionQuery)
-            if (!resultsRes.ok) continue
-            const results = await resultsRes.json()
-            const matches = results
-              .filter((r: { deckId: string; deckListId?: string }) => r.deckId === id && r.deckListId)
-              .sort((a: { placement: number }, b: { placement: number }) => a.placement - b.placement)
-
-            // Get tournament name from results
-            const tName = results[0]?.tournament?.name || ''
-
-            for (const match of matches) {
-              if (found.length >= 3) break
-              if (found.some(f => f.deckListId === match.deckListId)) continue
-
-              const deckRes = await fetch('/api/limitless/decklist/' + match.deckListId)
-              if (!deckRes.ok) continue
-              const deckData = await deckRes.json()
-              if (deckData.pokemon?.length > 0 || deckData.trainers?.length > 0 || deckData.energy?.length > 0) {
-                found.push({
-                  deckList: deckData,
-                  playerName: match.playerName || '',
-                  placement: match.placement,
-                  deckListId: match.deckListId,
-                  tournamentName: tName || match.tournament?.name || '',
-                })
-              }
-            }
-          }
-        }
-
-        // Fallback: if no selected tournaments or no results, search all tournaments
-        if (id && found.length < 3 && selectedTournamentIds.length === 0) {
-          const tournamentsRes = await fetch('/api/limitless/tournaments')
-          if (tournamentsRes.ok) {
-            const tournaments = await tournamentsRes.json()
-            for (const tournament of tournaments.slice(0, 5)) {
-              if (found.length >= 3) break
-              const resultsRes = await fetch('/api/limitless/tournaments/' + tournament.id + '/results' + divisionQuery)
-              if (!resultsRes.ok) continue
-              const results = await resultsRes.json()
-              const matches = results
-                .filter((r: { deckId: string; deckListId?: string }) => r.deckId === id && r.deckListId)
-                .sort((a: { placement: number }, b: { placement: number }) => a.placement - b.placement)
-
-              for (const match of matches) {
-                if (found.length >= 3) break
-                if (found.some(f => f.deckListId === match.deckListId)) continue
-
-                const deckRes = await fetch('/api/limitless/decklist/' + match.deckListId)
-                if (!deckRes.ok) continue
-                const deckData = await deckRes.json()
-                if (deckData.pokemon?.length > 0 || deckData.trainers?.length > 0 || deckData.energy?.length > 0) {
-                  found.push({
-                    deckList: deckData,
-                    playerName: match.playerName || '',
-                    placement: match.placement,
-                    deckListId: match.deckListId,
-                    tournamentName: tournament.name || '',
-                  })
-                }
-              }
-            }
-          }
-        }
-
-        if (found.length === 0 && deckListId) {
-          setError('Failed to fetch deck list')
-        }
-        setTopDecks(found)
+        setDeckList(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error')
       } finally {
@@ -206,16 +102,16 @@ function DeckPageContent({ params }: PageProps) {
       }
     }
 
-    if (id || deckListId) {
-      fetchTopDecks()
-    }
-  }, [deckListId, id, playerName, placement, tournamentName, divisionParam])
+    fetchDeckList()
+  }, [deckListId])
+
+  // Fetch Day 2 averages for this archetype
   useEffect(() => {
+    if (!id) return
+
     async function fetchDay2Averages() {
-      if (!id) return
       setAveragesLoading(true)
       try {
-        // Read selected tournament IDs from localStorage
         let selectedTournamentIds: string[] = []
         try {
           const stored = localStorage.getItem('pokemon-tcg-meta-selected-tournaments')
@@ -228,7 +124,6 @@ function DeckPageContent({ params }: PageProps) {
         }
         const divisionQuery = divisionParam ? `?division=${divisionParam}` : ''
 
-        // Use selected tournaments, or fall back to all
         let tournamentIds = selectedTournamentIds
         if (tournamentIds.length === 0) {
           const tournamentsRes = await fetch('/api/limitless/tournaments')
@@ -267,6 +162,7 @@ function DeckPageContent({ params }: PageProps) {
         setAveragesLoading(false)
       }
     }
+
     fetchDay2Averages()
   }, [id, divisionParam])
 
@@ -346,7 +242,6 @@ function DeckPageContent({ params }: PageProps) {
     }
   }
 
-  // Build a lookup map from user's deck: card name -> count
   const myDeckMap = useMemo(() => {
     if (!myDeck) return null
     const map = new Map<string, number>()
@@ -359,10 +254,7 @@ function DeckPageContent({ params }: PageProps) {
   function AvgTable({ title, cards, myCards }: { title: string; cards: AverageCard[]; myCards: CardEntry[] | null }) {
     if (cards.length === 0) return null
 
-    // Build set of card names in avg list for finding extras in user deck
     const avgCardNames = new Set(cards.map(c => c.name))
-
-    // Cards in user's deck for this category that aren't in the avg list
     const extraCards = myCards
       ? myCards.filter(c => !avgCardNames.has(c.name))
       : []
@@ -434,7 +326,7 @@ function DeckPageContent({ params }: PageProps) {
   }
 
   const creatorRec = creatorsData.recommendations.find(r => r.deckId === id)
-  
+
   const archetype = creatorRec?.archetype || {
     id: id,
     name: id.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
@@ -442,14 +334,16 @@ function DeckPageContent({ params }: PageProps) {
     tier: undefined,
   }
 
+  const placementNum = parseInt(placement || '0')
+  const ordinal = placementNum === 1 ? '1st' : placementNum === 2 ? '2nd' : placementNum === 3 ? '3rd' : placementNum + 'th'
 
   return (
     <div className="min-h-screen bg-poke-darker">
-      <Header 
+      <Header
         currentSet={currentSet}
         lastUpdated={LAST_UPDATED}
       />
-      
+
       <main className="container mx-auto px-4 py-8">
         <Link
           href={fromTab === 'tournament' ? '/?tab=tournament' : '/'}
@@ -457,18 +351,18 @@ function DeckPageContent({ params }: PageProps) {
         >
           ← Back to {fromTab === 'tournament' ? 'Tournament Results' : 'Meta Overview'}
         </Link>
-        
+
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">
             {archetype.name}
           </h1>
-          
+
           {archetype.tier && (
             <span className="inline-block bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 text-sm px-3 py-1 rounded">
               Tier {archetype.tier}
             </span>
           )}
-          
+
           {creatorRec && (
             <div className="mt-4 text-gray-400">
               {creatorRec.notes && <p className="italic">{creatorRec.notes}</p>}
@@ -499,7 +393,7 @@ function DeckPageContent({ params }: PageProps) {
         )}
 
         <h2 className="text-2xl font-bold text-white mb-4">
-          Top Placing Decks for this Archetype
+          Deck List
         </h2>
 
         {loading ? (
@@ -522,50 +416,45 @@ function DeckPageContent({ params }: PageProps) {
           <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-4 text-red-400">
             {error}
           </div>
-        ) : topDecks.length > 0 ? (
-          <div className="space-y-8">
-            {topDecks.map((entry, idx) => {
-              const ordinal = entry.placement === 1 ? '1st' : entry.placement === 2 ? '2nd' : entry.placement === 3 ? '3rd' : entry.placement + 'th'
-              return (
-                <div key={entry.deckListId || idx}>
-                  <div className="mb-3 p-3 bg-poke-dark border border-gray-800 rounded-lg">
-                    <p className="text-gray-400 text-sm">
-                      {entry.playerName && (
-                        <span className="text-white font-medium">{entry.playerName}</span>
-                      )}
-                      {entry.placement > 0 && (
-                        <>
-                          {entry.playerName ? ' - ' : ''}
-                          <span className="text-poke-yellow">{ordinal} place</span>
-                        </>
-                      )}
-                      {entry.tournamentName && (
-                        <span className="text-gray-500"> at {entry.tournamentName}</span>
-                      )}
-                      {entry.deckListId && (
-                        <>
-                          {' · '}
-                          <a
-                            href={'https://limitlesstcg.com/decks/list/' + entry.deckListId}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-poke-blue hover:underline"
-                          >
-                            View on Limitless
-                          </a>
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  <DeckList deckList={entry.deckList} />
-                </div>
-              )
-            })}
+        ) : deckList ? (
+          <div>
+            {(playerName || placementNum > 0 || tournamentName) && (
+              <div className="mb-3 p-3 bg-poke-dark border border-gray-800 rounded-lg">
+                <p className="text-gray-400 text-sm">
+                  {playerName && (
+                    <span className="text-white font-medium">{playerName}</span>
+                  )}
+                  {placementNum > 0 && (
+                    <>
+                      {playerName ? ' - ' : ''}
+                      <span className="text-poke-yellow">{ordinal} place</span>
+                    </>
+                  )}
+                  {tournamentName && (
+                    <span className="text-gray-500"> at {tournamentName}</span>
+                  )}
+                  {deckListId && (
+                    <>
+                      {' · '}
+                      <a
+                        href={'https://limitlesstcg.com/decks/list/' + deckListId}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-poke-blue hover:underline"
+                      >
+                        View on Limitless
+                      </a>
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
+            <DeckList deckList={deckList} />
           </div>
-        ) : (
+        ) : !deckListId ? (
           <div className="mt-6 p-4 bg-poke-dark border border-gray-800 rounded-lg">
             <p className="text-gray-400 text-sm">
-              No tournament deck list found for this archetype. Check{' '}
+              No deck list available for this archetype. Check{' '}
               <a
                 href="https://limitlesstcg.com"
                 target="_blank"
@@ -577,7 +466,7 @@ function DeckPageContent({ params }: PageProps) {
               {' '}for more deck lists.
             </p>
           </div>
-        )}
+        ) : null}
 
         <div className="mt-8">
           <h2 className="text-2xl font-bold text-white mb-2">
