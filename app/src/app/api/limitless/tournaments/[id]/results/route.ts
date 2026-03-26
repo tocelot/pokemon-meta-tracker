@@ -142,8 +142,8 @@ function parseLabsResults(html: string, tournamentId: string, labsId: string, di
 
   if (players.length === 0) return []
 
-  // Filter to Day 2 players only
-  const day2Players = players.filter(p => p.day2 === 1)
+  // Filter to Day 2 players with valid placement data
+  const day2Players = players.filter(p => p.day2 === 1 && p.placement != null && p.placement > 0)
 
   return day2Players.map(p => ({
     deckId: p.deck_id || generateDeckId(p.deck_name || 'Unknown'),
