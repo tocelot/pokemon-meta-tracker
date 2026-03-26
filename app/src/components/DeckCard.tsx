@@ -55,9 +55,9 @@ export function DeckCard({
     params.set('list', deckListId)
   }
   if (topPlacement) {
-    params.set('player', topPlacement.playerName)
-    params.set('placement', topPlacement.placement.toString())
-    params.set('tournament', topPlacement.tournament.name)
+    params.set('player', topPlacement.playerName ?? '')
+    params.set('placement', String(topPlacement.placement ?? 0))
+    params.set('tournament', topPlacement.tournament?.name ?? '')
   }
   // Track which tab the user came from
   params.set('from', source)
@@ -99,7 +99,7 @@ export function DeckCard({
                   {' '}{p.playerName}
                 </span>
                 <span className="text-xs text-gray-500">
-                  {p.tournament.name.replace(' Regional Championship', '').replace(' International Championship', ' IC')}
+                  {(p.tournament?.name ?? '').replace(' Regional Championship', '').replace(' International Championship', ' IC')}
                 </span>
               </div>
             ))}

@@ -6,7 +6,7 @@ export const revalidate = 3600 // Cache for 1 hour
 interface ResultEntry {
   deckId: string
   archetype: { id: string; name: string; primaryPokemon: string[]; tier?: number }
-  tournament: { id: string }
+  tournament: { id: string; name: string; date: string }
   placement: number
   playerName: string
   deckListId: string | null
@@ -46,7 +46,8 @@ export async function GET(
     }
 
     const html = await response.text()
-    const results = parseResults(html, id, 32)
+    const meta = parseTournamentMeta(html)
+    const results = parseResults(html, id, 32, meta)
     return NextResponse.json(results)
   } catch (error) {
     console.error('Error fetching tournament results:', error)
@@ -60,6 +61,7 @@ async function handleDivisionResults(id: string, division: string) {
 
   if (mainResponse?.ok) {
     const mainHtml = await mainResponse.text()
+    const meta = parseTournamentMeta(mainHtml)
     const $main = cheerio.load(mainHtml)
 
     let labsId = ''
@@ -75,7 +77,7 @@ async function handleDivisionResults(id: string, division: string) {
         const labsResponse = await fetchWithTimeout(labsUrl)
         if (labsResponse.ok) {
           const labsHtml = await labsResponse.text()
-          const labsResults = parseLabsResults(labsHtml, id, labsId, division)
+          const labsResults = parseLabsResults(labsHtml, id, labsId, division, meta)
           if (labsResults.length > 0) {
             return NextResponse.json(labsResults)
           }
@@ -91,7 +93,8 @@ async function handleDivisionResults(id: string, division: string) {
     const divisionResponse = await fetchWithTimeout(`https://limitlesstcg.com/tournaments/${id}/${division}`)
     if (divisionResponse.ok) {
       const html = await divisionResponse.text()
-      return NextResponse.json(parseResults(html, id, 64))
+      const fallbackMeta = parseTournamentMeta(html)
+      return NextResponse.json(parseResults(html, id, 64, fallbackMeta))
     }
   } catch {
     // Division page also failed
@@ -100,7 +103,16 @@ async function handleDivisionResults(id: string, division: string) {
   return NextResponse.json([])
 }
 
-function parseLabsResults(html: string, tournamentId: string, labsId: string, division: string): ResultEntry[] {
+function parseTournamentMeta(html: string): { name: string; date: string } {
+  const $ = cheerio.load(html)
+  const metaDesc = $('meta[name="description"]').attr('content') || ''
+  const parts = metaDesc.split(' - ')
+  const date = parts[0]?.trim() || ''
+  const name = parts[1]?.trim() || $('title').text().replace(/\s*[–-]\s*Limitless$/, '').trim() || 'Unknown Tournament'
+  return { name, date }
+}
+
+function parseLabsResults(html: string, tournamentId: string, labsId: string, division: string, meta: { name: string; date: string }): ResultEntry[] {
   const $ = cheerio.load(html)
 
   let players: Array<{
@@ -141,7 +153,7 @@ function parseLabsResults(html: string, tournamentId: string, labsId: string, di
       primaryPokemon: extractPrimaryPokemon(p.deck_name || ''),
       tier: p.placement <= 4 ? 1 : p.placement <= 8 ? 2 : 3,
     },
-    tournament: { id: tournamentId },
+    tournament: { id: tournamentId, name: meta.name, date: meta.date },
     placement: p.placement,
     playerName: p.name,
     deckListId: null,
@@ -153,7 +165,7 @@ function parseLabsResults(html: string, tournamentId: string, labsId: string, di
   }))
 }
 
-function parseResults(html: string, tournamentId: string, maxRank: number = 32): ResultEntry[] {
+function parseResults(html: string, tournamentId: string, maxRank: number = 32, meta?: { name: string; date: string }): ResultEntry[] {
   const $ = cheerio.load(html)
   const results: ResultEntry[] = []
 
@@ -177,7 +189,7 @@ function parseResults(html: string, tournamentId: string, maxRank: number = 32):
           primaryPokemon: extractPrimaryPokemon(deckName),
           tier: rank <= 4 ? 1 : rank <= 8 ? 2 : 3,
         },
-        tournament: { id: tournamentId },
+        tournament: { id: tournamentId, name: meta?.name ?? 'Unknown Tournament', date: meta?.date ?? '' },
         placement: rank,
         playerName,
         deckListId,

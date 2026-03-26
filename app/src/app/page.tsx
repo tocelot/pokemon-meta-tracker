@@ -267,7 +267,7 @@ function HomePageContent() {
         
         allResults.sort((a, b) => {
           if (a.placement !== b.placement) return a.placement - b.placement
-          return new Date(b.tournament.date).getTime() - new Date(a.tournament.date).getTime()
+          return new Date(b.tournament?.date || 0).getTime() - new Date(a.tournament?.date || 0).getTime()
         })
         
         setResults(allResults)
